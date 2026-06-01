@@ -58,13 +58,8 @@ async def serve_index():
 # ── Prompt CRUD endpoints ────────────────────────────────────────────
 @app.get("/api/prompts")
 async def list_prompts(user_id: str = Depends(get_user)):
-    personal_res = supabase.table("prompts").select("*").eq("user_id", user_id).execute()
-    system_res = supabase.table("prompts").select("*").eq("user_id", SYSTEM_USER_ID).execute()
-    
-    combined_data = personal_res.data + system_res.data
-    combined_data.sort(key=lambda x: x.get('created_at') or x.get('created'), reverse=True)
-    
-    return JSONResponse(combined_data)
+    res = supabase.table("prompts").select("*").eq("user_id", user_id).execute() 
+    return JSONResponse(res.data)
 
 @app.post("/api/prompts")
 async def create_prompt(body: PromptBody, user_id: str = Depends(get_user)):
