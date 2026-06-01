@@ -58,11 +58,7 @@ async def serve_index():
 # ── Prompt CRUD endpoints ────────────────────────────────────────────
 @app.get("/api/prompts")
 async def list_prompts(user_id: str = Depends(get_user)):
-    if not SYSTEM_USER_ID or user_id == SYSTEM_USER_ID:
-        res = supabase.table("prompts").select("*").eq("user_id", user_id).execute()
-    else:
-        res = supabase.table("prompts").select("*").or_(f"user_id.eq.{user_id},user_id.eq.{SYSTEM_USER_ID}").execute()
-    
+    res = supabase.table("prompts").select("*").eq("user_id", user_id).execute()
     data = res.data
     data.sort(key=lambda x: x.get('created_at') or x.get('created', ''), reverse=True)
     return JSONResponse(data)
