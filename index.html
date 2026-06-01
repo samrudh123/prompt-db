@@ -780,7 +780,7 @@
 </style>
 </head>
 <body>
-  <div id="loginScreen" style="display:none; position:fixed; inset:0; background:var(--bg-primary); align-items:center; justify-content:center; flex-direction:column; gap:16px; font-family:var(--sans);">
+  <div id="loginScreen" class="dark-mode" style="display:none; position:fixed; inset:0; background:var(--bg-primary); align-items:center; justify-content:center; flex-direction:column; gap:16px; font-family:var(--sans);">
     <h2 style="font-size:20px; color:var(--text-primary);">Prompt DB</h2>
     <input id="loginEmail" type="email" placeholder="Email" style="padding:10px; border-radius:8px; border:1px solid var(--border-md); background:var(--bg-secondary); color:var(--text-primary); font-size:14px; width:280px;">
     <input id="loginPassword" type="password" placeholder="Password" style="padding:10px; border-radius:8px; border:1px solid var(--border-md); background:var(--bg-secondary); color:var(--text-primary); font-size:14px; width:280px;" onkeydown="if(event.key==='Enter') login()">
