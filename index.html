@@ -783,6 +783,12 @@
     font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer;
   }
   .btn-save:hover { opacity: 0.88; }
+  .btn-danger {
+    padding: 8px 18px; background: #E24B4A; color: #fff;
+    border: none; border-radius: var(--border-radius-md);
+    font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .btn-danger:hover { opacity: 0.88; }
 
   .prompt-picker-list { display: flex; flex-direction: column; gap: 8px; }
   .prompt-picker-item {
@@ -934,6 +940,19 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="deleteOverlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Delete confirmation">
+      <h2>Delete Prompt</h2>
+      <p style="font-size: 14px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px;">
+        Are you sure you want to delete this prompt? This action cannot be undone.
+      </p>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+        <button class="btn-danger" onclick="confirmDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
+
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -972,6 +991,7 @@
     activeCat: 'All',
     selected: null,
     editId: null,
+    deleteId: null,
     theme: 'dark',
     model: DEFAULT_MODEL,
     customModels: [],
@@ -1861,17 +1881,30 @@ async function login() {
   }
 
   async function deletePrompt(id) {
-    if (!confirm('Delete this prompt template? This cannot be undone.')) return;
+    state.deleteId = id;
+    document.getElementById('deleteOverlay').classList.add('open');
+  }
+
+  function closeDeleteModal() {
+    document.getElementById('deleteOverlay').classList.remove('open');
+    state.deleteId = null;
+  }
+
+  async function confirmDelete() {
+    const id = state.deleteId;
+    if (!id) return;
+    
+    closeDeleteModal();
+    
     try {
       const res = await fetch(`${API_BASE}/api/prompts/${id}`, {
         method: 'DELETE', headers: authHeaders()
       });
       if (!res.ok) throw new Error('Failed to delete prompt');
       if (state.selected?.id===id) closeRunner();
-      // Reload prompts from server to stay in sync
       await loadFromStorage();
     } catch(e) {
-      alert('Error deleting prompt: ' + e.message);
+      showNotification('Error deleting prompt: ' + e.message);
     }
   }
 
