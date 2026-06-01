@@ -1065,6 +1065,12 @@
 </style>
 </head>
 <body>
+  <div id="loginScreen" style="display:none; position:fixed; inset:0; background:var(--bg-primary); align-items:center; justify-content:center; flex-direction:column; gap:16px; font-family:var(--sans);">
+    <h2 style="font-size:20px; color:var(--text-primary);">Prompt DB</h2>
+    <input id="loginEmail" type="email" placeholder="Email" style="padding:10px; border-radius:8px; border:1px solid var(--border-md); background:var(--bg-secondary); color:var(--text-primary); font-size:14px; width:280px;">
+    <input id="loginPassword" type="password" placeholder="Password" style="padding:10px; border-radius:8px; border:1px solid var(--border-md); background:var(--bg-secondary); color:var(--text-primary); font-size:14px; width:280px;" onkeydown="if(event.key==='Enter') login()">
+    <button onclick="login()" style="padding:10px 24px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; width:280px;">Sign in</button>
+  </div>
   <div class="app" id="app">
     <div class="sidebar">
       <div class="sidebar-header">
@@ -1163,20 +1169,20 @@
   </div>
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
   <script>
   const COLORS = ['', 'purple', 'amber', 'coral'];
-  const API_BASE = 'http://localhost:8000';
-  const DEFAULT_MODEL = '';
-  const CUSTOM_MODEL_KEY = 'custom-models';
-  const BLOCKED_PROVIDERS = ['anthropic', 'openai'];
-  const BASE_MODEL_OPTIONS = [];
-  const GEN_SETTINGS_KEY = 'gen-settings';
-  const DEFAULT_TEMP = 0.2;
-  const DEFAULT_MAX_TOKENS = 512;
+  const SUPABASE_URL = 'https://jwbakkdtfpeghbwppajl.supabase.co'
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3YmFra2R0ZnBlZ2hid3BwYWpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMTI5MDMsImV4cCI6MjA5NTg4ODkwM30.jm8Xk__3PtLW8AtVxzEbOpHM72HKoLWxhk1CjM4_WM0'  // safe to expose in frontend
+  const API_BASE = 'https://your-railway-url.up.railway.app'
+
+  const { createClient } = supabase
+  const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
   const CAT_ICONS = {
     'All': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>',
     'Writing': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>',
@@ -1200,6 +1206,44 @@
     gen: { temperature: DEFAULT_TEMP, maxTokens: DEFAULT_MAX_TOKENS },
     sidebarCollapsed: false
   };
+
+  let currentSession = null
+
+  async function initAuth() {
+    const { data } = await sb.auth.getSession()
+    currentSession = data.session
+
+    sb.auth.onAuthStateChange((_event, session) => {
+      currentSession = session
+      if (session) showApp()
+      else showLogin()
+    })
+
+    if (currentSession) showApp()
+    else showLogin()
+  }
+
+  function showLogin() {
+    document.getElementById('loginScreen').style.display = 'flex'
+    document.getElementById('app').style.display = 'none'
+  }
+
+  function showApp() {
+    document.getElementById('loginScreen').style.display = 'none'
+    document.getElementById('app').style.display = 'grid'
+    loadFromStorage()  // your existing load function
+  }
+
+  async function login() {
+    const email = document.getElementById('loginEmail').value
+    const password = document.getElementById('loginPassword').value
+    const { error } = await sb.auth.signInWithPassword({ email, password })
+    if (error) alert(error.message)
+  }
+
+  async function logout() {
+    await sb.auth.signOut()
+  }
 
   function setTheme(t) {
     state.theme = t;
@@ -1789,181 +1833,6 @@
     }
     el.style.display = 'block';
     el.textContent = text;
-  }
-
-  function toggleThinking() {
-    const header = document.getElementById('thinkingHeader');
-    const body   = document.getElementById('thinkingBody');
-    if (!header || !body) return;
-    const open = body.classList.toggle('open');
-    header.classList.toggle('open', open);
-  }
-
-  function resetThinkingBlock() {
-    const block  = document.getElementById('thinkingBlock');
-    const header = document.getElementById('thinkingHeader');
-    const label  = document.getElementById('thinkingLabel');
-    const body   = document.getElementById('thinkingBody');
-    if (!block) return;
-    block.style.display = 'none';
-    if (header) header.classList.remove('open');
-    if (label)  { label.textContent = 'Thinking'; label.classList.add('thinking-label-pulse'); }
-    if (body)   { body.textContent = ''; body.classList.remove('open'); }
-  }
-
-  async function streamSse(res) {
-    if (!res.body) throw new Error('Streaming is not supported by this browser.');
-    const out = document.getElementById('outputBox');
-    if (!out) return;
-
-    // Reset thinking block and output before starting
-    resetThinkingBlock();
-    out.innerHTML = '';
-    setDebugStatus('streaming response', false);
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let accumulated = '';
-    let thinkingAccum = '';
-    let thinkingStarted = false;
-
-    const getEl = id => document.getElementById(id);
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let boundary = buffer.indexOf('\n\n');
-      while (boundary !== -1) {
-        const raw = buffer.slice(0, boundary).trim();
-        buffer = buffer.slice(boundary + 2);
-        if (raw) {
-          raw.split('\n').forEach(line => {
-            if (!line.startsWith('data:')) return;
-            const jsonStr = line.slice(5).trim();
-            if (!jsonStr) return;
-            let ev;
-            try { ev = JSON.parse(jsonStr); } catch(e) { return; }
-
-            if (ev.type === 'thinking' && ev.text) {
-              // First thinking chunk: show block and auto-open body
-              if (!thinkingStarted) {
-                thinkingStarted = true;
-                const block = getEl('thinkingBlock');
-                const body  = getEl('thinkingBody');
-                const hdr   = getEl('thinkingHeader');
-                if (block) block.style.display = 'block';
-                if (body)  body.classList.add('open');
-                if (hdr)   hdr.classList.add('open');
-              }
-              thinkingAccum += ev.text;
-              const body = getEl('thinkingBody');
-              if (body) {
-                body.textContent = thinkingAccum;
-                // Auto-scroll thinking body to bottom
-                body.scrollTop = body.scrollHeight;
-              }
-
-            } else if (ev.type === 'thinking_done') {
-              // Remove pulse, close the body (collapsed), update label
-              const label = getEl('thinkingLabel');
-              const body  = getEl('thinkingBody');
-              const hdr   = getEl('thinkingHeader');
-              if (label) {
-                label.classList.remove('thinking-label-pulse');
-                const secs = (typeof ev.seconds === 'number') ? ev.seconds : parseInt(ev.seconds, 10);
-                label.innerHTML = `Thought for <em>${isNaN(secs) ? '?' : secs}s</em>`;
-              }
-              // Collapse the body after thinking finishes
-              if (body) body.classList.remove('open');
-              if (hdr)  hdr.classList.remove('open');
-
-            } else if (ev.type === 'delta' && ev.text) {
-              accumulated += ev.text;
-              out.textContent = accumulated;
-
-            } else if (ev.type === 'error') {
-              throw new Error(ev.message || 'Model error.');
-            }
-          });
-        }
-        boundary = buffer.indexOf('\n\n');
-      }
-    }
-    renderMarkdown(accumulated || '');
-  }
-
-
-  async function runPrompt() {
-    const p = state.selected; if (!p) return;
-    const btn = document.getElementById('btnRun');
-    if (!state.model) {
-      setOutputError('Please load and select a model first.');
-      setDebugStatus('no model selected', true);
-      setWarning('');
-      return;
-    }
-    const canStream = modelSupportsStreaming(state.model);
-    if (!canStream) setDebugStatus('fallback to non-stream (streaming not supported)', false);
-    btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Running…';
-    resetThinkingBlock();
-    setOutputPlaceholder('Connecting to local server…');
-    syncGenFromInputs();
-    setDebugStatus('sending request', false);
-    setWarning('');
-    let filled = p.prompt;
-    extractVars(p.prompt).forEach(v => {
-      const val = document.getElementById('var_'+v)?.value||`[${v}]`;
-      filled = filled.replaceAll(`{{${v}}}`, val);
-    });
-    try {
-      const res = await fetch(`${API_BASE}/api/run`, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({
-          model: state.model,
-          prompt: filled,
-          max_tokens: state.gen.maxTokens,
-          temperature: state.gen.temperature,
-          stream: canStream
-        })
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Request failed.');
-      }
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('text/event-stream')) {
-        await streamSse(res);
-      } else {
-        const data = await res.json();
-        resetThinkingBlock();
-        if (data.thinking) {
-          const block  = document.getElementById('thinkingBlock');
-          const label  = document.getElementById('thinkingLabel');
-          const body   = document.getElementById('thinkingBody');
-          const hdr    = document.getElementById('thinkingHeader');
-          if (block)  block.style.display = 'block';
-          if (label)  { label.classList.remove('thinking-label-pulse'); label.innerHTML = 'Thought'; }
-          if (body)   body.textContent = data.thinking;
-          // Leave body collapsed (click to expand)
-          if (hdr)    hdr.classList.remove('open');
-        }
-        renderMarkdown(data.output || 'No response.');
-        setDebugStatus('response received', false);
-        if (String(data.finishReason || '').toUpperCase() === 'MAX_TOKENS') {
-          setWarning('Output may be truncated due to max token limit. Increase max tokens if needed.');
-        }
-      }
-    } catch(e) {
-      setOutputError(`Error: ${e.message}`);
-      setDebugStatus('error', true);
-      setWarning('');
-    } finally {
-      btn.disabled=false;
-      updateRunLabel();
-    }
   }
 
   function openModal(id) {
