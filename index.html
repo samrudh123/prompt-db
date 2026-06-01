@@ -891,8 +891,6 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
   <script>
   const COLORS = ['', 'purple', 'amber', 'coral'];
-  const API_BASE = 'https://prompt-db-production.up.railway.app:8000';
-
   const DEFAULT_MODEL = '';
   const CUSTOM_MODEL_KEY = 'custom-models';
   const BLOCKED_PROVIDERS = ['anthropic', 'openai'];
@@ -912,6 +910,7 @@
   };
   const SUPABASE_URL = 'https://jwbakkdtfpeghbwppajl.supabase.co'
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3YmFra2R0ZnBlZ2hid3BwYWpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMTI5MDMsImV4cCI6MjA5NTg4ODkwM30.jm8Xk__3PtLW8AtVxzEbOpHM72HKoLWxhk1CjM4_WM0'  // safe to expose in frontend
+  const API_BASE = 'http://prompt-db-production.up.railway.app:8000';
 
   const { createClient } = supabase
   const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
