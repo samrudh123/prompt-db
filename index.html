@@ -51,6 +51,40 @@
      background: var(--bg-primary); 
      }
 
+  .notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .notification {
+    background: #E24B4A;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: var(--sans);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideIn 0.3s ease forwards, fadeOut 0.5s ease 2.5s forwards;
+    pointer-events: auto;
+    min-width: 200px;
+    max-width: 350px;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  @keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
   .app {
     display: grid;
     grid-template-columns: 240px 1fr;
@@ -58,7 +92,7 @@
     width: 100vw;
     overflow: hidden;
     background: var(--bg-primary);
-    transition: background 0.2s, border-color 0.2s;
+    transition: background 0.2s, border-color 0.2s, grid-template-columns 0.3s ease;
   }
   .app.sidebar-collapsed { grid-template-columns: 64px 1fr; }
 
@@ -92,23 +126,35 @@
     color: var(--text-secondary);
   }
   .sidebar-toggle:hover { color: var(--text-primary); }
-  .sidebar.collapsed .sidebar-header h1,
-  .sidebar.collapsed .sidebar-header p {
-    display: none;
-  }
-  .sidebar-header h1 {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-primary);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    font-family: var(--mono);
-  }
-  .sidebar-header p {
-    font-size: 11px;
-    color: var(--text-secondary);
-    margin-top: 2px;
-  }
+   .sidebar-header h1,
+   .sidebar-header p {
+     transition: all 0.3s ease;
+     overflow: hidden;
+     white-space: nowrap;
+   }
+
+   .sidebar-header h1 {
+     font-size: 13px;
+     font-weight: 600;
+     color: var(--text-primary);
+     letter-spacing: 0.06em;
+     text-transform: uppercase;
+     font-family: var(--mono);
+   }
+
+   .sidebar-header p {
+     font-size: 11px;
+     color: var(--text-secondary);
+     margin-top: 2px;
+   }
+
+   .sidebar.collapsed .sidebar-header h1,
+   .sidebar.collapsed .sidebar-header p {
+     opacity: 0;
+     max-width: 0;
+     margin: 0;
+     padding: 0;
+   }
 
   /* Theme toggle */
   .theme-toggle {
@@ -780,6 +826,7 @@
 </style>
 </head>
 <body>
+  <div id="notificationContainer" class="notification-container"></div>
   <div id="loginScreen" class="dark-mode" style="display:none; position:fixed; inset:0; background:var(--bg-primary); align-items:center; justify-content:center; flex-direction:column; gap:16px; font-family:var(--sans);">
     <h2 style="font-size:20px; color:var(--text-primary);">Prompt DB</h2>
     <input id="loginEmail" type="email" placeholder="Email" style="padding:10px; border-radius:8px; border:1px solid var(--border-md); background:var(--bg-secondary); color:var(--text-primary); font-size:14px; width:280px;">
@@ -829,6 +876,10 @@
             <i class="ti ti-moon" aria-hidden="true"></i>
           </button>
         </div>
+        <button class="toolbar-btn" onclick="logout()" title="Logout" aria-label="Logout">
+          <i class="ti ti-logout" aria-hidden="true"></i>
+          <span>Logout</span>
+        </button>
       </div>
       <div class="main-content">
         <div class="list-view" id="listView">
@@ -883,6 +934,7 @@
     </div>
   </div>
 
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" defer></script>
@@ -955,15 +1007,27 @@
     loadFromStorage()  // your existing load function
   }
 
-  async function login() {
+async function login() {
     const email = document.getElementById('loginEmail').value
     const password = document.getElementById('loginPassword').value
     const { error } = await sb.auth.signInWithPassword({ email, password })
-    if (error) alert(error.message)
+    if (error) showNotification(error.message)
+  }
+
+  function showNotification(message) {
+    const container = document.getElementById('notificationContainer');
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.textContent = message;
+    container.appendChild(notification);
+    setTimeout(() => {
+      notification.remove();
+    }, 5000);
   }
 
   async function logout() {
     await sb.auth.signOut()
+    showLogin()
   }
 
   function setTheme(t) {

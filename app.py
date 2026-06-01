@@ -34,7 +34,7 @@ app.add_middleware(
 )
 
 HERE = Path(__file__).resolve().parent
-
+SYSTEM_USER_ID = os.environ.get("SYSTEM_USER_ID")
 
 class PromptBody(BaseModel):
     title: str
@@ -58,8 +58,13 @@ async def serve_index():
 # ── Prompt CRUD endpoints ────────────────────────────────────────────
 @app.get("/api/prompts")
 async def list_prompts(user_id: str = Depends(get_user)):
-    res = supabase.table("prompts").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
-    return JSONResponse(res.data)
+    personal_res = supabase.table("prompts").select("*").eq("user_id", user_id).execute()
+    system_res = supabase.table("prompts").select("*").eq("user_id", SYSTEM_USER_ID).execute()
+    
+    combined_data = personal_res.data + system_res.data
+    combined_data.sort(key=lambda x: x.get('created_at') or x.get('created'), reverse=True)
+    
+    return JSONResponse(combined_data)
 
 @app.post("/api/prompts")
 async def create_prompt(body: PromptBody, user_id: str = Depends(get_user)):
