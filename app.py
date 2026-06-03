@@ -13,7 +13,8 @@ from supabase import create_client, Client
 from fastapi import Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-load_dotenv()
+HERE = Path(__file__).resolve().parent
+load_dotenv(override=True)
 
 app = FastAPI()
 supabase: Client = create_client(
@@ -33,8 +34,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-HERE = Path(__file__).resolve().parent
-SYSTEM_USER_ID = os.environ.get("SYSTEM_USER_ID")
+SYSTEM_USER_ID = os.environ["SYSTEM_USER_ID"]
 
 class PromptBody(BaseModel):
     title: str
@@ -58,15 +58,19 @@ async def serve_index():
 # ── Prompt CRUD endpoints ────────────────────────────────────────────
 @app.get("/api/prompts")
 async def list_prompts(user_id: str = Depends(get_user)):
+    print(f"DEBUG: Request from user {user_id}")
+    print(f"DEBUG: SYSTEM_USER_ID is {SYSTEM_USER_ID}")
+    
     if not SYSTEM_USER_ID or user_id == SYSTEM_USER_ID:
-        # System user or system_user_id not configured: return only current user prompts
+        print(f"DEBUG: Fetching only user prompts for {user_id}")
         res = supabase.table("prompts").select("*").eq("user_id", user_id).execute()
     else:
-        # Other users: return their prompts OR system prompts
-        res = supabase.table("prompts").select("*").or_(f"user_id.eq.{user_id},user_id.eq.{SYSTEM_USER_ID}").execute()
+        query_filter = f"user_id.eq.{user_id},user_id.eq.{SYSTEM_USER_ID}"
+        print(f"DEBUG: Fetching combined prompts with filter: {query_filter}")
+        res = supabase.table("prompts").select("*").or_(query_filter).execute()
     
     data = res.data
-    # Sort results by created_at descending to keep the view consistent
+    print(f"DEBUG: Found {len(data)} prompts total")
     data.sort(key=lambda x: x.get('created_at') or x.get('created', ''), reverse=True)
     return JSONResponse(data)
 
