@@ -91,7 +91,7 @@
 
   .password-wrap {
     position: relative;
-    width: 280px;
+    width: 100%;
     display: flex;
     align-items: center;
   }
@@ -99,18 +99,39 @@
     width: 100% !important;
     padding-right: 40px !important;
   }
-  #togglePassword {
+  .password-toggle {
     position: absolute;
-    right: 10px;
+    right: 12px;
     top: 50%;
     transform: translateY(-50%);
     cursor: pointer;
-    color: var(--text-secondary);
+    color: #ffffff;
     font-size: 18px;
-    transition: color 0.2s;
+    transition: opacity 0.2s;
+    opacity: 0.7;
+    z-index: 10;
   }
-  #togglePassword:hover {
-    color: var(--text-primary);
+  .password-toggle:hover {
+    opacity: 1;
+  }
+  .password-wrap input {
+    width: 100% !important;
+    padding-right: 40px !important;
+  }
+  .password-toggle {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: #ffffff;
+    font-size: 18px;
+    transition: opacity 0.2s;
+    opacity: 0.8;
+    z-index: 10;
+  }
+  .password-toggle:hover {
+    opacity: 1;
   }
 
   .app {
@@ -1320,45 +1341,38 @@
 <body>
   <div id="notificationContainer" class="notification-container"></div>
   <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeMobileDrawer()"></div>
-  <div id="authScreen" class="auth-screen dark-mode">
-    <div class="auth-card">
-      <h2>Prompt DB</h2>
+    <div id="authScreen" class="auth-screen dark-mode">
+      <div class="auth-card">
+        <h2>Prompt DB</h2>
 
-      <!-- Login / Signup tabs -->
-      <div class="auth-tabs">
-        <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Sign In</button>
-        <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Sign Up</button>
-      </div>
-
-      <!-- Login form -->
-      <div class="auth-form" id="loginForm">
-        <input id="loginEmail" type="text" placeholder="Email / Username" autocomplete="username">
-        <div class="password-wrap">
-          <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter') login()">
-          <i class="ti ti-eye" id="togglePassword" onclick="togglePassword()"></i>
+        <!-- Login / Signup tabs -->
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Sign In</button>
+          <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Sign Up</button>
         </div>
-        <button class="auth-submit" onclick="login()">Sign In</button>
-        <p class="auth-switch">Don't have an account? <a onclick="switchAuthTab('signup')">Sign up</a></p>
-      </div>
 
-      <!-- Signup form -->
-      <div class="auth-form" id="signupForm" style="display:none;">
-        <input id="signupEmail" type="email" placeholder="Email" autocomplete="email">
-        <input id="signupUsername" type="text" placeholder="Username" autocomplete="username">
-        <div class="password-wrap">
-          <input id="signupPassword" type="password" placeholder="Password" autocomplete="new-password" onkeydown="if(event.key==='Enter') signup()">
-          <i class="ti ti-eye" id="toggleSignupPassword" onclick="toggleSignupPassword()"></i>
+        <!-- Login form -->
+        <div class="auth-form" id="loginForm">
+          <input id="loginEmail" type="text" placeholder="Email / Username" autocomplete="username">
+          <div class="password-wrap">
+            <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter') login()">
+            <i class="ti ti-eye password-toggle" onclick="togglePassword('loginPassword', this)"></i>
+          </div>
+          <button class="auth-submit" onclick="login()">Sign In</button>
+          <p class="auth-switch">Don't have an account? <a onclick="switchAuthTab('signup')">Sign up</a></p>
         </div>
-        <select id="signupRole">
-          <option value="Professor">Professor</option>
-          <option value="Lab-Admin">Lab-Admin</option>
-          <option value="MS" selected>MS</option>
-          <option value="Project-Staff">Project-Staff</option>
-          <option value="Undergrad">Undergrad</option>
-          <option value="Interns">Interns</option>
-        </select>
-        <button class="auth-submit" onclick="signup()">Create Account</button>
-        <p class="auth-switch">Already have an account? <a onclick="switchAuthTab('login')">Sign in</a></p>
+
+        <!-- Signup form -->
+        <div class="auth-form" id="signupForm" style="display:none;">
+          <input id="signupEmail" type="email" placeholder="Email" autocomplete="email">
+          <input id="signupUsername" type="text" placeholder="Username" autocomplete="username">
+          <div class="password-wrap">
+            <input id="signupPassword" type="password" placeholder="Password" autocomplete="new-password" onkeydown="if(event.key==='Enter') signup()">
+            <i class="ti ti-eye password-toggle" onclick="togglePassword('signupPassword', this)"></i>
+          </div>
+          <button class="auth-submit" onclick="signup()">Create Account</button>
+          <p class="auth-switch">Already have an account? <a onclick="switchAuthTab('login')">Sign in</a></p>
+        </div>
       </div>
     </div>
   </div>
@@ -1630,7 +1644,6 @@
     const email = document.getElementById('signupEmail').value.trim();
     const username = document.getElementById('signupUsername').value.trim();
     const password = document.getElementById('signupPassword').value;
-    const role = document.getElementById('signupRole').value;
     if (!email || !username || !password) {
       showNotification('Please fill in all fields');
       return;
@@ -1643,7 +1656,7 @@
       const res = await fetch(`${API_BASE}/api/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-        body: JSON.stringify({ email, username, password, role })
+        body: JSON.stringify({ email, username, password })
       });
       const data = await res.json();
       if (!res.ok) {
