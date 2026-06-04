@@ -1205,12 +1205,12 @@
     'Summarisation': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>',
     'Custom': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8L12 3z" /><path d="m19 16 .9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9L19 16z" /></svg>'
   };
-  const SUPABASE_URL = 'https://jwbakkdtfpeghbwppajl.supabase.co'
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3YmFra2R0ZnBlZ2hid3BwYWpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMTI5MDMsImV4cCI6MjA5NTg4ODkwM30.jm8Xk__3PtLW8AtVxzEbOpHM72HKoLWxhk1CjM4_WM0'  // safe to expose in frontend
-  const API_BASE = window.location.origin;  // assuming backend API is served from the same origin
-
-  const { createClient } = supabase
-  const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  const SUPABASE_URL = 'https://jwbakkdtfpeghbwppajl.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp3YmFra2R0ZnBlZ2hid3BwYWpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMTI5MDMsImV4cCI6MjA5NTg4ODkwM30.jm8Xk__3PtLW8AtVxzEbOpHM72HKoLWxhk1CjM4_WM0';  // safe to expose in frontend
+  const API_BASE = 'http://atypical-unsold-appointee.ngrok-free.dev';
+  
+  const { createClient } = supabase;
+  const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   let state = {
     prompts: [],
@@ -1226,25 +1226,25 @@
     sidebarCollapsed: false
   };
 
-  let currentSession = null
+  let currentSession = null;
 
   async function initAuth() {
-    const { data } = await sb.auth.getSession()
-    currentSession = data.session
+    const { data } = await sb.auth.getSession();
+    currentSession = data.session;
 
     sb.auth.onAuthStateChange((_event, session) => {
-      currentSession = session
-      if (session) showApp()
-      else showLogin()
+      currentSession = session;
+      if (session) showApp();
+      else showLogin();
     })
 
-    if (currentSession) showApp()
-    else showLogin()
+    if (currentSession) showApp();
+    else showLogin();
   }
 
   function showLogin() {
-    document.getElementById('loginScreen').style.display = 'flex'
-    document.getElementById('app').style.display = 'none'
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
   }
 
   function togglePassword() {
@@ -1260,16 +1260,16 @@
   }
 
   function showApp() {
-    document.getElementById('loginScreen').style.display = 'none'
-    document.getElementById('app').style.display = 'grid'
-    loadFromStorage()  // your existing load function
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').style.display = 'grid';
+    loadFromStorage();  // your existing load function
   }
 
 async function login() {
-    const email = document.getElementById('loginEmail').value
-    const password = document.getElementById('loginPassword').value
-    const { error } = await sb.auth.signInWithPassword({ email, password })
-    if (error) showNotification(error.message)
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) showNotification(error.message);
   }
 
   function showNotification(message) {
@@ -1284,8 +1284,8 @@ async function login() {
   }
 
   async function logout() {
-    await sb.auth.signOut()
-    showLogin()
+    await sb.auth.signOut();
+    showLogin();
   }
 
   function setTheme(t) {
@@ -1303,7 +1303,8 @@ async function login() {
   function authHeaders() {
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${currentSession?.access_token}`
+      'Authorization': `Bearer ${currentSession?.access_token}`,
+      'ngrok-skip-browser-warning': 'true'  // custom header to bypass ngrok's browser warning for API calls
     }
   }
 
@@ -1822,21 +1823,8 @@ async function login() {
 
   async function refreshGeminiModels() {
     const lists = [document.getElementById('runnerGeminiList')].filter(Boolean);
-    lists.forEach(list => { list.innerHTML = '<span class="runner-hint">Loading Gemini models...</span>'; });
-    try {
-      const res = await fetch(`${API_BASE}/api/google/models?method=generateContent`);
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || 'Failed to load Gemini models.');
-      }
-      const data = await res.json();
-      state.geminiModels = data.models || [];
-      renderGeminiList();
-      return true;
-    } catch(e) {
-      lists.forEach(list => { list.innerHTML = `<span class="runner-hint">Error: ${escapeHtml(e.message)}</span>`; });
-      return false;
-    }
+    lists.forEach(list => { list.innerHTML = '<span class="runner-hint">Gemini integration disabled in static mode.</span>'; });
+    return false;
   }
 
   async function refreshSelectorFromServer() {
@@ -2062,6 +2050,11 @@ async function login() {
       setWarning('');
       return;
     }
+    
+    // Note: AI execution is disabled in the static GitHub Pages version.
+    showNotification('AI execution is not available in this static version.');
+    return;
+
     const canStream = modelSupportsStreaming(state.model);
     if (!canStream) setDebugStatus('fallback to non-stream (streaming not supported)', false);
     btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Running…';
@@ -2078,7 +2071,10 @@ async function login() {
     try {
       const res = await fetch(`${API_BASE}/api/run`, {
         method:'POST',
-        headers:{'Content-Type':'application/json'},
+        headers:{
+          'Content-Type':'application/json',
+          'ngrok-skip-browser-warning':'true' // Custom header to bypass ngrok's browser warning if using ngrok
+        },
         body: JSON.stringify({
           model: state.model,
           prompt: filled,
