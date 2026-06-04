@@ -382,10 +382,9 @@
     .var-input-wrap textarea { font-size: 15px; padding: 9px 10px; }
 
     /* Login */
-    #loginScreen { padding: 24px; padding-top: calc(24px + var(--sat)); gap: 14px; }
-    #loginScreen h2 { font-size: 24px; }
-    #loginScreen input, #loginScreen button {
-      width: 100% !important; max-width: 100%;
+    #authScreen { padding: 24px; padding-top: calc(24px + var(--sat)); }
+    .auth-card h2 { font-size: 24px; }
+    .auth-form input, .auth-form select, .auth-submit {
       font-size: 16px !important; padding: 14px 16px;
     }
 
@@ -1048,19 +1047,320 @@
     animation: spin 0.7s linear infinite; display: inline-block;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Auth screen (Login / Signup) ─────────────────────────────── */
+  .auth-screen {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--bg-primary);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0;
+    font-family: var(--sans);
+    z-index: 300;
+  }
+  .auth-card {
+    width: 340px;
+    max-width: 92vw;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .auth-card h2 {
+    font-size: 22px;
+    color: var(--text-primary);
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .auth-tabs {
+    display: flex;
+    width: 100%;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border-md);
+    background: var(--bg-secondary);
+  }
+  .auth-tab {
+    flex: 1;
+    padding: 9px 0;
+    text-align: center;
+    font-size: 13px;
+    font-family: var(--sans);
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    transition: background 0.15s, color 0.15s;
+  }
+  .auth-tab.active {
+    background: var(--accent);
+    color: #fff;
+  }
+  .auth-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .auth-form input,
+  .auth-form select {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-md);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-family: var(--sans);
+    width: 100%;
+    transition: border-color 0.15s;
+  }
+  .auth-form input:focus,
+  .auth-form select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .auth-form .password-wrap {
+    width: 100%;
+  }
+  .auth-form .password-wrap input {
+    width: 100% !important;
+  }
+  .auth-submit {
+    padding: 10px 24px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: var(--sans);
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    transition: opacity 0.15s;
+    margin-top: 2px;
+  }
+  .auth-submit:hover { opacity: 0.88; }
+  .auth-submit:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .auth-switch {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-top: 4px;
+  }
+  .auth-switch a {
+    color: var(--accent);
+    cursor: pointer;
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .auth-switch a:hover { text-decoration: underline; }
+
+  /* ── User avatar & dropdown ──────────────────────────────────── */
+  .user-menu-wrap {
+    position: relative;
+  }
+  .user-avatar-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--sans);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: box-shadow 0.15s, transform 0.15s;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .user-avatar-btn:hover {
+    box-shadow: 0 0 0 3px var(--accent-soft);
+    transform: scale(1.06);
+  }
+  .user-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 260px;
+    background: var(--bg-primary);
+    border: 0.5px solid var(--border-md);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    z-index: 500;
+    padding: 16px;
+    flex-direction: column;
+    gap: 12px;
+    animation: dropdownIn 0.15s ease;
+  }
+  .user-dropdown.open {
+    display: flex;
+  }
+  @keyframes dropdownIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .dropdown-profile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-bottom: 12px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .dropdown-username {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .dropdown-email {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-family: var(--mono);
+    word-break: break-all;
+  }
+  .role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-family: var(--mono);
+    width: fit-content;
+    margin-top: 4px;
+    letter-spacing: 0.02em;
+  }
+  .role-badge::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  /* Role colors matching the reference image */
+  .role-professor { background: #FFF3D6; color: #8B6914; }
+  .role-professor::before { background: #E5A613; }
+  .dark-mode .role-professor { background: #332805; color: #FAC775; }
+  .dark-mode .role-professor::before { background: #E5A613; }
+
+  .role-lab-admin { background: #FDE8E8; color: #B91C1C; }
+  .role-lab-admin::before { background: #E24B4A; }
+  .dark-mode .role-lab-admin { background: #2e0808; color: #F87171; }
+  .dark-mode .role-lab-admin::before { background: #E24B4A; }
+
+  .role-ms { background: #DBEAFE; color: #1E40AF; }
+  .role-ms::before { background: #3B82F6; }
+  .dark-mode .role-ms { background: #0c1a33; color: #60A5FA; }
+  .dark-mode .role-ms::before { background: #3B82F6; }
+
+  .role-project-staff { background: #DBEAFE; color: #1E40AF; }
+  .role-project-staff::before { background: #3B82F6; }
+  .dark-mode .role-project-staff { background: #0c1a33; color: #60A5FA; }
+  .dark-mode .role-project-staff::before { background: #3B82F6; }
+
+  .role-undergrad { background: #D1FAE5; color: #065F46; }
+  .role-undergrad::before { background: #10B981; }
+  .dark-mode .role-undergrad { background: #052e16; color: #34D399; }
+  .dark-mode .role-undergrad::before { background: #10B981; }
+
+  .role-interns { background: #D1FAE5; color: #065F46; }
+  .role-interns::before { background: #10B981; }
+  .dark-mode .role-interns { background: #052e16; color: #34D399; }
+  .dark-mode .role-interns::before { background: #10B981; }
+
+  .dropdown-logout-btn {
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: 0.5px solid var(--border-md);
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-size: 12px;
+    color: #E24B4A;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background 0.12s;
+  }
+  .dropdown-logout-btn:hover {
+    background: #FDE8E8;
+  }
+  .dark-mode .dropdown-logout-btn:hover {
+    background: #2e0808;
+  }
+
+  .notification.success {
+    background: #10B981;
+  }
+
+  /* Mobile auth tweaks */
+  @media (max-width: 640px) {
+    .auth-card { width: 100%; padding: 0 24px; }
+    .auth-card h2 { font-size: 22px; }
+    .auth-form input,
+    .auth-form select { font-size: 16px !important; padding: 14px 16px; }
+    .auth-submit { font-size: 16px !important; padding: 14px 16px; }
+  }
 </style>
 </head>
 <body>
   <div id="notificationContainer" class="notification-container"></div>
   <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeMobileDrawer()"></div>
-  <div id="loginScreen" class="dark-mode" style="display:none; position:fixed; inset:0; background:var(--bg-primary); align-items:center; justify-content:center; flex-direction:column; gap:16px; font-family:var(--sans);">
-    <h2 style="font-size:20px; color:var(--text-primary);">Prompt DB</h2>
-    <input id="loginEmail" type="email" placeholder="Email" style="padding:10px; border-radius:8px; border:1px solid var(--border-md); background:var(--bg-secondary); color:var(--text-primary); font-size:14px; width:280px;">
-    <div class="password-wrap">
-      <input id="loginPassword" type="password" placeholder="Password" style="padding:10px; border-radius:8px; border:1px solid var(--border-md); background:var(--bg-secondary); color:var(--text-primary); font-size:14px;" onkeydown="if(event.key==='Enter') login()">
-      <i class="ti ti-eye" id="togglePassword" onclick="togglePassword()"></i>
+  <div id="authScreen" class="auth-screen dark-mode">
+    <div class="auth-card">
+      <h2>Prompt DB</h2>
+
+      <!-- Login / Signup tabs -->
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Sign In</button>
+        <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Sign Up</button>
+      </div>
+
+      <!-- Login form -->
+      <div class="auth-form" id="loginForm">
+        <input id="loginEmail" type="text" placeholder="Email / Username" autocomplete="username">
+        <div class="password-wrap">
+          <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter') login()">
+          <i class="ti ti-eye" id="togglePassword" onclick="togglePassword()"></i>
+        </div>
+        <button class="auth-submit" onclick="login()">Sign In</button>
+        <p class="auth-switch">Don't have an account? <a onclick="switchAuthTab('signup')">Sign up</a></p>
+      </div>
+
+      <!-- Signup form -->
+      <div class="auth-form" id="signupForm" style="display:none;">
+        <input id="signupEmail" type="email" placeholder="Email" autocomplete="email">
+        <input id="signupUsername" type="text" placeholder="Username" autocomplete="username">
+        <div class="password-wrap">
+          <input id="signupPassword" type="password" placeholder="Password" autocomplete="new-password" onkeydown="if(event.key==='Enter') signup()">
+          <i class="ti ti-eye" id="toggleSignupPassword" onclick="toggleSignupPassword()"></i>
+        </div>
+        <select id="signupRole">
+          <option value="Professor">Professor</option>
+          <option value="Lab-Admin">Lab-Admin</option>
+          <option value="MS" selected>MS</option>
+          <option value="Project-Staff">Project-Staff</option>
+          <option value="Undergrad">Undergrad</option>
+          <option value="Interns">Interns</option>
+        </select>
+        <button class="auth-submit" onclick="signup()">Create Account</button>
+        <p class="auth-switch">Already have an account? <a onclick="switchAuthTab('login')">Sign in</a></p>
+      </div>
     </div>
-    <button onclick="login()" style="padding:10px 24px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; width:280px;">Sign in</button>
   </div>
   <div class="app" id="app">
     <div class="sidebar">
@@ -1108,10 +1408,20 @@
             <i class="ti ti-moon" aria-hidden="true"></i>
           </button>
         </div>
-        <button class="toolbar-btn" onclick="logout()" title="Logout" aria-label="Logout">
-          <i class="ti ti-logout" aria-hidden="true"></i>
-          <span class="logout-label">Logout</span>
-        </button>
+        <div class="user-menu-wrap" id="userMenuWrap">
+          <button class="user-avatar-btn" id="userAvatarBtn" onclick="toggleUserDropdown()" title="Profile" aria-label="User profile">?</button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="dropdown-profile">
+              <span class="dropdown-username" id="dropdownUsername">—</span>
+              <span class="dropdown-email" id="dropdownEmail">—</span>
+              <span class="role-badge" id="dropdownRole">—</span>
+            </div>
+            <button class="dropdown-logout-btn" onclick="logout()">
+              <i class="ti ti-logout" aria-hidden="true"></i>
+              Logout
+            </button>
+          </div>
+        </div>
       </div>
       <div class="main-content">
         <div class="list-view" id="listView">
@@ -1243,8 +1553,17 @@
   }
 
   function showLogin() {
-    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('authScreen').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
+    switchAuthTab('login');
+  }
+
+  function switchAuthTab(tab) {
+    const isLogin = tab === 'login';
+    document.getElementById('tabLogin').classList.toggle('active', isLogin);
+    document.getElementById('tabSignup').classList.toggle('active', !isLogin);
+    document.getElementById('loginForm').style.display = isLogin ? 'flex' : 'none';
+    document.getElementById('signupForm').style.display = isLogin ? 'none' : 'flex';
   }
 
   function togglePassword() {
@@ -1259,23 +1578,104 @@
     }
   }
 
+  function toggleSignupPassword() {
+    const pwdInput = document.getElementById('signupPassword');
+    const toggleIcon = document.getElementById('toggleSignupPassword');
+    if (pwdInput.type === 'password') {
+      pwdInput.type = 'text';
+      toggleIcon.classList.replace('ti-eye', 'ti-eye-off');
+    } else {
+      pwdInput.type = 'password';
+      toggleIcon.classList.replace('ti-eye-off', 'ti-eye');
+    }
+  }
+
   function showApp() {
-    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('authScreen').style.display = 'none';
     document.getElementById('app').style.display = 'grid';
-    loadFromStorage();  // your existing load function
+    loadFromStorage();
+    loadUserProfile();
   }
 
-async function login() {
-    const email = document.getElementById('loginEmail').value;
+  async function login() {
+    const emailOrUser = document.getElementById('loginEmail').value.trim();
     const password = document.getElementById('loginPassword').value;
-    const { error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) showNotification(error.message);
+    if (!emailOrUser || !password) {
+      showNotification('Please fill in all fields');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ email_or_username: emailOrUser, password })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showNotification(data.detail || 'Login failed');
+        return;
+      }
+      // Set session in Supabase client
+      const { error } = await sb.auth.setSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token
+      });
+      if (error) showNotification(error.message);
+    } catch (e) {
+      showNotification('Network error. Check your connection.');
+    }
   }
 
-  function showNotification(message) {
+  async function signup() {
+    const email = document.getElementById('signupEmail').value.trim();
+    const username = document.getElementById('signupUsername').value.trim();
+    const password = document.getElementById('signupPassword').value;
+    const role = document.getElementById('signupRole').value;
+    if (!email || !username || !password) {
+      showNotification('Please fill in all fields');
+      return;
+    }
+    if (password.length < 6) {
+      showNotification('Password must be at least 6 characters');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ email, username, password, role })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showNotification(data.detail || 'Signup failed');
+        return;
+      }
+      showNotification('Account created! Signing in…', true);
+      // Auto-login after signup
+      const loginRes = await fetch(`${API_BASE}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ email_or_username: email, password })
+      });
+      const loginData = await loginRes.json();
+      if (loginRes.ok) {
+        await sb.auth.setSession({
+          access_token: loginData.access_token,
+          refresh_token: loginData.refresh_token
+        });
+      } else {
+        switchAuthTab('login');
+        showNotification('Account created. Please sign in.');
+      }
+    } catch (e) {
+      showNotification('Network error. Check your connection.');
+    }
+  }
+
+  function showNotification(message, isSuccess) {
     const container = document.getElementById('notificationContainer');
     const notification = document.createElement('div');
-    notification.className = 'notification';
+    notification.className = 'notification' + (isSuccess ? ' success' : '');
     notification.textContent = message;
     container.appendChild(notification);
     setTimeout(() => {
@@ -1283,8 +1683,65 @@ async function login() {
     }, 5000);
   }
 
+  // ── User profile & avatar dropdown ─────────────────────────────
+  let userProfile = null;
+
+  async function loadUserProfile() {
+    try {
+      const res = await fetch(`${API_BASE}/api/profile`, { headers: authHeaders() });
+      if (res.ok) {
+        userProfile = await res.json();
+        updateUserAvatar();
+      }
+    } catch (e) {
+      console.error('Failed to load profile:', e);
+    }
+  }
+
+  function getRoleBadgeClass(role) {
+    const map = {
+      'Professor': 'role-professor',
+      'Lab-Admin': 'role-lab-admin',
+      'MS': 'role-ms',
+      'Project-Staff': 'role-project-staff',
+      'Undergrad': 'role-undergrad',
+      'Interns': 'role-interns'
+    };
+    return map[role] || 'role-ms';
+  }
+
+  function updateUserAvatar() {
+    if (!userProfile) return;
+    const btn = document.getElementById('userAvatarBtn');
+    const nameEl = document.getElementById('dropdownUsername');
+    const emailEl = document.getElementById('dropdownEmail');
+    const roleEl = document.getElementById('dropdownRole');
+    if (btn) btn.textContent = (userProfile.username || '?')[0].toUpperCase();
+    if (nameEl) nameEl.textContent = userProfile.username || '—';
+    if (emailEl) emailEl.textContent = userProfile.email || '—';
+    if (roleEl) {
+      roleEl.textContent = userProfile.role || '—';
+      roleEl.className = 'role-badge ' + getRoleBadgeClass(userProfile.role);
+    }
+  }
+
+  function toggleUserDropdown() {
+    const dd = document.getElementById('userDropdown');
+    dd.classList.toggle('open');
+  }
+
+  // Close dropdown on outside click
+  document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('userMenuWrap');
+    if (wrap && !wrap.contains(e.target)) {
+      document.getElementById('userDropdown')?.classList.remove('open');
+    }
+  });
+
   async function logout() {
     await sb.auth.signOut();
+    userProfile = null;
+    document.getElementById('userDropdown')?.classList.remove('open');
     showLogin();
   }
 
@@ -1295,6 +1752,8 @@ async function login() {
     document.body.classList.toggle('dark-mode', t === 'dark');
     const runnerOverlay = document.getElementById('runnerOverlay');
     if (runnerOverlay) runnerOverlay.classList.toggle('dark-mode', t === 'dark');
+    const authScreen = document.getElementById('authScreen');
+    if (authScreen) authScreen.classList.toggle('dark-mode', t === 'dark');
     document.getElementById('btnLight').classList.toggle('active', t === 'light');
     document.getElementById('btnDark').classList.toggle('active', t === 'dark');
     try { localStorage.setItem('theme-pref', t); } catch(e) {}
