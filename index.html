@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>Adaptive Prompt Database</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;500;600&display=swap');
@@ -85,8 +88,34 @@
     from { opacity: 1; }
     to { opacity: 0; }
   }
+
+  .password-wrap {
+    position: relative;
+    width: 280px;
+    display: flex;
+    align-items: center;
+  }
+  .password-wrap input {
+    width: 100% !important;
+    padding-right: 40px !important;
+  }
+  #togglePassword {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 18px;
+    transition: color 0.2s;
+  }
+  #togglePassword:hover {
+    color: var(--text-primary);
+  }
+
   .app {
     display: grid;
+
     grid-template-columns: 240px 1fr;
     height: 100vh;
     width: 100vw;
@@ -186,6 +215,196 @@
     color: var(--accent);
     box-shadow: 0 1px 3px rgba(0,0,0,0.12);
   }
+
+  /* ── Safe area CSS variables (notch / home bar) ─────────────────── */
+  :root {
+    --sat: env(safe-area-inset-top, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+  }
+
+  /* ── Tablet & Mobile (≤ 1024px): drawer sidebar, icons + labels ── */
+  @media (max-width: 1024px) {
+
+    /* Sidebar: fixed overlay drawer, starts hidden off-screen left */
+    .app {
+      grid-template-columns: 1fr !important;
+    }
+    .app.sidebar-collapsed { grid-template-columns: 1fr !important; }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: -320px;
+      bottom: 0;
+      width: 260px;
+      z-index: 200;
+      transition: left 0.28s cubic-bezier(0.4,0,0.2,1);
+      align-items: flex-start;
+      padding-top: var(--sat);
+      box-shadow: none;
+    }
+    /* Expanded drawer state */
+    .sidebar.mobile-open {
+      left: 0;
+      box-shadow: 4px 0 24px rgba(0,0,0,0.22);
+    }
+    /* Collapsed state: icon-only strip (still in-flow on tablet) */
+    .sidebar.collapsed {
+      left: 0;
+      width: 64px;
+      align-items: center;
+      box-shadow: none;
+    }
+
+    /* Always show labels/counts/text inside the open drawer */
+    .sidebar-header h1, .sidebar-header p { opacity: 1; max-width: unset; margin: unset; padding: unset; }
+    .cat-label { display: inline; }
+    .cat-count { display: inline-flex; }
+    .cat-item { justify-content: flex-start; }
+    .sidebar-footer .btn-new { padding: 8px; }
+    .btn-text { display: inline; }
+
+    /* When collapsed: hide labels + text, centre icons */
+    .sidebar.collapsed .sidebar-header h1,
+    .sidebar.collapsed .sidebar-header p { opacity: 0; max-width: 0; margin: 0; padding: 0; }
+    .sidebar.collapsed .cat-label,
+    .sidebar.collapsed .cat-count,
+    .sidebar.collapsed .btn-text { display: none; }
+    .sidebar.collapsed .cat-item { justify-content: center; }
+    .sidebar.collapsed .btn-new { padding: 8px 0; }
+
+    /* Backdrop — shown when drawer is open on mobile */
+    .sidebar-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.42);
+      z-index: 199;
+    }
+    .sidebar-backdrop.open { display: block; }
+
+    /* Main takes full width */
+    .main { height: 100dvh; display: flex; flex-direction: column; }
+    .main-toolbar { padding-top: calc(10px + var(--sat)); gap: 8px; }
+
+    /* Show hamburger, keep the desktop sidebar-toggle visible too */
+    .mobile-menu-btn {
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+      background: var(--bg-secondary);
+      border: 0.5px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    /* Runner: bottom sheet on all small screens */
+    .runner-overlay { align-items: flex-end; }
+    .runner-modal {
+      width: 100% !important;
+      height: 94dvh;
+      border-radius: 20px 20px 0 0;
+      border-bottom: none;
+    }
+    .runner-modal::before {
+      content: '';
+      display: block;
+      width: 40px; height: 4px;
+      background: var(--border-md);
+      border-radius: 4px;
+      margin: 10px auto 0;
+      flex-shrink: 0;
+    }
+    .runner-modal { width: min(900px, 95vw) !important; }
+  }
+
+  /* ── Mobile only (≤ 640px): extra tweaks ────────────────────────── */
+  @media (max-width: 640px) {
+    html, body { height: 100%; overflow: hidden; }
+
+    .app { height: 100dvh; padding-bottom: var(--sab); }
+
+    /* On phone the sidebar-toggle in the sidebar header is hidden —
+       only the hamburger in the toolbar is used */
+    .sidebar-toggle { display: none; }
+
+    /* Collapsed sidebar on mobile hides fully off-screen (not an icon strip) */
+    .sidebar.collapsed {
+      left: -320px;
+      width: 260px; /* restore width so it slides back in correctly */
+    }
+
+    .toolbar-btn .logout-label { display: none; }
+    .toolbar-btn { padding: 7px; }
+
+    /* Prompt list */
+    .prompt-list { padding: 10px; gap: 10px; }
+    .prompt-card { padding: 14px; }
+    .card-title { font-size: 15px; }
+    .card-actions .icon-btn { width: 34px; height: 34px; }
+
+    /* Runner columns: single column */
+    .runner-columns { grid-template-columns: 1fr !important; overflow-y: auto; }
+    .runner-col { min-height: unset; }
+    .runner-body { padding: 12px; gap: 10px; overflow-y: auto; }
+    .runner-footer {
+      padding: 10px 14px;
+      padding-bottom: calc(10px + var(--sab));
+    }
+    .runner-modal { width: 100% !important; height: 94dvh; }
+
+    /* Modal: bottom sheet */
+    .modal-overlay { align-items: flex-end; }
+    .modal {
+      width: 100% !important; max-width: 100%;
+      border-radius: 20px 20px 0 0;
+      padding: 20px 18px;
+      padding-bottom: calc(20px + var(--sab));
+      max-height: 92dvh;
+    }
+    .modal::before {
+      content: '';
+      display: block;
+      width: 40px; height: 4px;
+      background: var(--border-md);
+      border-radius: 4px;
+      margin: 0 auto 16px;
+    }
+    /* Prevent iOS auto-zoom */
+    .field input, .field textarea, .field select { font-size: 16px; }
+    .var-input-wrap input,
+    .var-input-wrap textarea { font-size: 15px; padding: 9px 10px; }
+
+    /* Login */
+    #loginScreen { padding: 24px; padding-top: calc(24px + var(--sat)); gap: 14px; }
+    #loginScreen h2 { font-size: 24px; }
+    #loginScreen input, #loginScreen button {
+      width: 100% !important; max-width: 100%;
+      font-size: 16px !important; padding: 14px 16px;
+    }
+
+    .thinking-body { max-height: 140px; }
+    .output-box { max-height: none; flex: 1; min-height: 120px; }
+
+    /* Notifications at bottom */
+    .notification-container {
+      top: auto;
+      bottom: calc(16px + var(--sab));
+      right: 12px; left: 12px;
+      align-items: stretch;
+    }
+    .notification { max-width: 100%; }
+  }
+
+  /* Hide mobile-only elements on desktop */
+  .mobile-menu-btn { display: none; }
+  .sidebar-backdrop { display: none; }
 
   .cat-list { flex: 1; overflow-y: auto; padding: 8px; }
   .cat-item {
@@ -833,10 +1052,14 @@
 </head>
 <body>
   <div id="notificationContainer" class="notification-container"></div>
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeMobileDrawer()"></div>
   <div id="loginScreen" class="dark-mode" style="display:none; position:fixed; inset:0; background:var(--bg-primary); align-items:center; justify-content:center; flex-direction:column; gap:16px; font-family:var(--sans);">
     <h2 style="font-size:20px; color:var(--text-primary);">Prompt DB</h2>
     <input id="loginEmail" type="email" placeholder="Email" style="padding:10px; border-radius:8px; border:1px solid var(--border-md); background:var(--bg-secondary); color:var(--text-primary); font-size:14px; width:280px;">
-    <input id="loginPassword" type="password" placeholder="Password" style="padding:10px; border-radius:8px; border:1px solid var(--border-md); background:var(--bg-secondary); color:var(--text-primary); font-size:14px; width:280px;" onkeydown="if(event.key==='Enter') login()">
+    <div class="password-wrap">
+      <input id="loginPassword" type="password" placeholder="Password" style="padding:10px; border-radius:8px; border:1px solid var(--border-md); background:var(--bg-secondary); color:var(--text-primary); font-size:14px;" onkeydown="if(event.key==='Enter') login()">
+      <i class="ti ti-eye" id="togglePassword" onclick="togglePassword()"></i>
+    </div>
     <button onclick="login()" style="padding:10px 24px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-size:14px; cursor:pointer; width:280px;">Sign in</button>
   </div>
   <div class="app" id="app">
@@ -870,6 +1093,9 @@
 
     <div class="main">
       <div class="main-toolbar">
+        <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="openMobileDrawer()" aria-label="Open menu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+        </button>
         <div class="search-wrap" id="searchWrap">
           <i class="ti ti-search" aria-hidden="true"></i>
           <input type="text" id="searchInput" placeholder="Search prompts…" oninput="renderList()">
@@ -884,7 +1110,7 @@
         </div>
         <button class="toolbar-btn" onclick="logout()" title="Logout" aria-label="Logout">
           <i class="ti ti-logout" aria-hidden="true"></i>
-          <span>Logout</span>
+          <span class="logout-label">Logout</span>
         </button>
       </div>
       <div class="main-content">
@@ -1019,6 +1245,18 @@
   function showLogin() {
     document.getElementById('loginScreen').style.display = 'flex'
     document.getElementById('app').style.display = 'none'
+  }
+
+  function togglePassword() {
+    const pwdInput = document.getElementById('loginPassword');
+    const toggleIcon = document.getElementById('togglePassword');
+    if (pwdInput.type === 'password') {
+      pwdInput.type = 'text';
+      toggleIcon.classList.replace('ti-eye', 'ti-eye-off');
+    } else {
+      pwdInput.type = 'password';
+      toggleIcon.classList.replace('ti-eye-off', 'ti-eye');
+    }
   }
 
   function showApp() {
@@ -1166,7 +1404,57 @@ async function login() {
     app.classList.toggle('sidebar-collapsed', state.sidebarCollapsed);
   }
 
+
+  // ── Mobile drawer ─────────────────────────────────────────────────
+  function isSmallScreen() { return window.innerWidth <= 1024; }
+  function isMobile() { return window.innerWidth <= 640; }
+
+  function openMobileDrawer() {
+    const sidebar  = document.querySelector('.sidebar');
+    const backdrop = document.getElementById('sidebarBackdrop');
+    if (!sidebar) return;
+    // Ensure sidebar is not in icon-only collapsed state when opening
+    sidebar.classList.remove('collapsed');
+    sidebar.classList.add('mobile-open');
+    // Show backdrop only on phone (tablet has enough context)
+    if (backdrop && isMobile()) backdrop.classList.add('open');
+    if (isMobile()) document.body.style.overflow = 'hidden';
+  }
+
+  function closeMobileDrawer() {
+    const sidebar  = document.querySelector('.sidebar');
+    const backdrop = document.getElementById('sidebarBackdrop');
+    if (!sidebar) return;
+    sidebar.classList.remove('mobile-open');
+    if (backdrop) backdrop.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
   function toggleSidebar() {
+    if (isSmallScreen()) {
+      const sidebar = document.querySelector('.sidebar');
+      if (!sidebar) return;
+      if (sidebar.classList.contains('mobile-open')) {
+        // Drawer is open → collapse to icon strip (tablet) or hide (mobile)
+        sidebar.classList.remove('mobile-open');
+        document.getElementById('sidebarBackdrop')?.classList.remove('open');
+        document.body.style.overflow = '';
+        if (!isMobile()) {
+          // On tablet: collapse to icon-only strip
+          sidebar.classList.add('collapsed');
+          state.sidebarCollapsed = true;
+          try { localStorage.setItem('sidebar-collapsed', 'true'); } catch(e) {}
+        }
+      } else if (sidebar.classList.contains('collapsed')) {
+        // Icon strip → expand to full drawer
+        openMobileDrawer();
+      } else {
+        // Neither open nor collapsed → open drawer
+        openMobileDrawer();
+      }
+      return;
+    }
+    // Desktop behaviour unchanged
     state.sidebarCollapsed = !state.sidebarCollapsed;
     applySidebarState();
     try { localStorage.setItem('sidebar-collapsed', String(state.sidebarCollapsed)); } catch(e) {}
@@ -1223,7 +1511,7 @@ async function login() {
     return Math.floor(d/86400000)+'d ago';
   }
 
-  function selectCat(cat) { state.activeCat=cat; state.selected=null; closeRunner(); render(); }
+  function selectCat(cat) { state.activeCat=cat; state.selected=null; closeRunner(); if (isSmallScreen()) closeMobileDrawer(); render(); }
 
   function selectPrompt(id) {
     state.selected = state.prompts.find(p=>p.id===id);
