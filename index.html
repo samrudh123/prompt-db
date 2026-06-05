@@ -1973,11 +1973,12 @@
     el.innerHTML = list.map((p,i) => `
       <div class="prompt-card ${state.selected?.id===p.id?'selected':''}" onclick="selectPrompt('${p.id}')">
         <div class="card-header">
-          <span class="card-title">${p.title}</span>
+          <span class="card-title">${p.title}${p.is_system ? ' <small style="opacity:0.6; font-weight:normal; font-size:11px;">(Default)</small>' : ''}</span>
           <div class="card-actions">
+            ${!p.is_system ? `
             <button class="icon-btn ${p.is_public ? 'public-active' : ''}" onclick="event.stopPropagation();togglePublic('${p.id}', ${p.is_public})" title="${p.is_public ? 'Make Private' : 'Make Public'}" aria-label="${p.is_public ? 'Make Private' : 'Make Public'}">
               <i class="ti ${p.is_public ? 'ti-lock' : 'ti-globe'}"></i>
-            </button>
+            </button>` : ''}
             <button class="icon-btn" onclick="event.stopPropagation();editPrompt('${p.id}')" title="Edit" aria-label="Edit">
               <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 20h9" />
