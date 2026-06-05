@@ -1028,8 +1028,51 @@
     font-size: 13px;
     color: var(--text-secondary);
   }
-  .icon-btn.public-active {
-    color: var(--accent);
+  .admin-container {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: 100%;
+  }
+  .admin-container h2 {
+    font-size: 18px;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+  }
+  .user-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    gap: 10px;
+  }
+  .user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .user-info .name { font-weight: 500; font-size: 14px; color: var(--text-primary); }
+  .user-info .email { font-size: 12px; color: var(--text-secondary); font-family: var(--mono); }
+  .role-select {
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 0.5px solid var(--border-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 12px;
+  }
+  .btn-promote {
+    padding: 5px 12px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
   }
   .btn-cancel {
     padding: 8px 16px; background: transparent;
@@ -1464,6 +1507,12 @@
         <div class="list-view" id="listView">
           <div class="prompt-list" id="promptList"></div>
         </div>
+        <div class="list-view" id="adminView" style="display:none;">
+          <div class="admin-container">
+            <h2>Pending Users</h2>
+            <div id="pendingUsersList" class="prompt-list"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1759,12 +1808,30 @@
     const nameEl = document.getElementById('dropdownUsername');
     const emailEl = document.getElementById('dropdownEmail');
     const roleEl = document.getElementById('dropdownRole');
+    const dropdown = document.getElementById('userDropdown');
+    
     if (btn) btn.textContent = (userProfile.username || '?')[0].toUpperCase();
     if (nameEl) nameEl.textContent = userProfile.username || '—';
     if (emailEl) emailEl.textContent = userProfile.email || '—';
     if (roleEl) {
       roleEl.textContent = userProfile.role || '—';
       roleEl.className = 'role-badge ' + getRoleBadgeClass(userProfile.role);
+    }
+    
+    // Admin Link
+    const existingAdmin = dropdown.querySelector('.admin-link');
+    if (existingAdmin) existingAdmin.remove();
+    
+    if (userProfile.role === 'Bot') {
+      const adminBtn = document.createElement('button');
+      adminBtn.className = 'dropdown-logout-btn';
+      adminBtn.style.color = 'var(--accent)';
+      adminBtn.innerHTML = '<i class="ti ti-shield-check"></i> Admin Panel';
+      adminBtn.onclick = () => {
+        showAdminPanel();
+        toggleUserDropdown();
+      };
+      dropdown.insertBefore(adminBtn, dropdown.lastElementChild);
     }
   }
 
@@ -1780,6 +1847,69 @@
       document.getElementById('userDropdown')?.classList.remove('open');
     }
   });
+
+  function showAdminPanel() {
+    document.getElementById('listView').style.display = 'none';
+    document.getElementById('adminView').style.display = 'flex';
+    loadPendingUsers();
+  }
+
+  function showPromptList() {
+    document.getElementById('listView').style.display = 'flex';
+    document.getElementById('adminView').style.display = 'none';
+  }
+
+  async function loadPendingUsers() {
+    try {
+      const res = await fetch(`${API_BASE}/api/users/pending`, { headers: authHeaders() });
+      if (!res.ok) throw new Error('Failed to load users');
+      const users = await res.json();
+      const list = document.getElementById('pendingUsersList');
+      
+      if (!users.length) {
+        list.innerHTML = '<div class="empty-state"><i class="ti ti-user-off"></i><p>No pending users found.</p></div>';
+        return;
+      }
+      
+      list.innerHTML = users.map(u => `
+        <div class="user-row">
+          <div class="user-info">
+            <span class="name">${u.username}</span>
+            <span class="email">${u.email}</span>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <select class="role-select" id="role-${u.id}">
+              <option value="MS">MS</option>
+              <option value="Undergrad">Undergrad</option>
+              <option value="Project-Staff">Project-Staff</option>
+              <option value="Lab-Admin">Lab-Admin</option>
+              <option value="Professor">Professor</option>
+              <option value="Interns">Interns</option>
+            </select>
+            <button class="btn-promote" onclick="promoteUser('${u.id}')">Promote</button>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      showNotification('Error loading users: ' + e.message);
+    }
+  }
+
+  async function promoteUser(userId) {
+    const role = document.getElementById(`role-${userId}`).value;
+    try {
+      const res = await fetch(`${API_BASE}/api/users/${userId}/role`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ role })
+      });
+      if (!res.ok) throw new Error('Promotion failed');
+      showNotification('User promoted successfully!', true);
+      loadPendingUsers();
+    } catch (e) {
+      showNotification('Error: ' + e.message);
+    }
+  }
 
   async function logout() {
     await sb.auth.signOut();
