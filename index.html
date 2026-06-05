@@ -1367,6 +1367,16 @@
   .dark-mode .role-interns { background: #052e16; color: #34D399; }
   .dark-mode .role-interns::before { background: #10B981; }
 
+  .role-bot { background: #EDE9FE; color: #5B21B6; }
+  .role-bot::before { background: #7C3AED; }
+  .dark-mode .role-bot { background: #1e1033; color: #C4B5FD; }
+  .dark-mode .role-bot::before { background: #7C3AED; }
+
+  .role-pending { background: #F3F4F6; color: #6B7280; }
+  .role-pending::before { background: #9CA3AF; }
+  .dark-mode .role-pending { background: #1f2025; color: #9CA3AF; }
+  .dark-mode .role-pending::before { background: #6B7280; }
+
   .dropdown-logout-btn {
     width: 100%;
     padding: 8px 12px;
@@ -1507,9 +1517,15 @@
         <div class="list-view" id="listView">
           <div class="prompt-list" id="promptList"></div>
         </div>
-        <div class="list-view" id="adminView" style="display:none;">
-          <div class="admin-container">
-            <h2>Pending Users</h2>
+        <div class="list-view" id="adminView" style="display:none; flex-direction:column; overflow:hidden;">
+          <div class="admin-container" style="overflow-y:auto;">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:4px;">
+              <button onclick="showPromptList()" class="btn-cancel" style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; font-size:12px;">
+                <i class="ti ti-arrow-left" aria-hidden="true"></i> Back
+              </button>
+              <h2 style="margin-bottom:0;">Manage Users</h2>
+            </div>
+            <p style="font-size:12px; color:var(--text-secondary); font-family:var(--mono); margin-bottom:12px;">Assign roles to all users. Changes take effect immediately.</p>
             <div id="pendingUsersList" class="prompt-list"></div>
           </div>
         </div>
@@ -1659,27 +1675,16 @@
     document.getElementById('signupForm').style.display = isLogin ? 'none' : 'flex';
   }
 
-  function togglePassword() {
-    const pwdInput = document.getElementById('loginPassword');
-    const toggleIcon = document.getElementById('togglePassword');
+  function togglePassword(inputId, iconEl) {
+    const pwdInput = document.getElementById(inputId);
+    if (!pwdInput) return;
+    const icon = iconEl || pwdInput.parentElement?.querySelector('.password-toggle');
     if (pwdInput.type === 'password') {
       pwdInput.type = 'text';
-      toggleIcon.classList.replace('ti-eye', 'ti-eye-off');
+      if (icon) { icon.classList.remove('ti-eye'); icon.classList.add('ti-eye-off'); }
     } else {
       pwdInput.type = 'password';
-      toggleIcon.classList.replace('ti-eye-off', 'ti-eye');
-    }
-  }
-
-  function toggleSignupPassword() {
-    const pwdInput = document.getElementById('signupPassword');
-    const toggleIcon = document.getElementById('toggleSignupPassword');
-    if (pwdInput.type === 'password') {
-      pwdInput.type = 'text';
-      toggleIcon.classList.replace('ti-eye', 'ti-eye-off');
-    } else {
-      pwdInput.type = 'password';
-      toggleIcon.classList.replace('ti-eye-off', 'ti-eye');
+      if (icon) { icon.classList.remove('ti-eye-off'); icon.classList.add('ti-eye'); }
     }
   }
 
@@ -1797,7 +1802,9 @@
       'MS': 'role-ms',
       'Project-Staff': 'role-project-staff',
       'Undergrad': 'role-undergrad',
-      'Interns': 'role-interns'
+      'Interns': 'role-interns',
+      'Bot': 'role-bot',
+      'Pending': 'role-pending'
     };
     return map[role] || 'role-ms';
   }
@@ -1824,9 +1831,9 @@
     
     if (userProfile.role === 'Bot') {
       const adminBtn = document.createElement('button');
-      adminBtn.className = 'dropdown-logout-btn';
-      adminBtn.style.color = 'var(--accent)';
-      adminBtn.innerHTML = '<i class="ti ti-shield-check"></i> Admin Panel';
+      adminBtn.className = 'dropdown-logout-btn admin-link';
+      adminBtn.style.cssText = 'color: var(--accent); border-color: var(--accent);';
+      adminBtn.innerHTML = '<i class="ti ti-shield-check" aria-hidden="true"></i> Admin Panel';
       adminBtn.onclick = () => {
         showAdminPanel();
         toggleUserDropdown();
@@ -1851,7 +1858,7 @@
   function showAdminPanel() {
     document.getElementById('listView').style.display = 'none';
     document.getElementById('adminView').style.display = 'flex';
-    loadPendingUsers();
+    loadAllUsers();
   }
 
   function showPromptList() {
@@ -1859,55 +1866,69 @@
     document.getElementById('adminView').style.display = 'none';
   }
 
-  async function loadPendingUsers() {
+  async function loadAllUsers() {
+    const list = document.getElementById('pendingUsersList');
+    list.innerHTML = '<div class="empty-state"><i class="ti ti-loader" style="animation:spin 1s linear infinite"></i><p>Loading users…</p></div>';
     try {
-      const res = await fetch(`${API_BASE}/api/users/pending`, { headers: authHeaders() });
-      if (!res.ok) throw new Error('Failed to load users');
+      // Fetch all users (pending endpoint — we extend with a separate all-users call)
+      const res = await fetch(`${API_BASE}/api/users/all`, { headers: authHeaders() });
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const users = await res.json();
-      const list = document.getElementById('pendingUsersList');
-      
-      if (!users.length) {
-        list.innerHTML = '<div class="empty-state"><i class="ti ti-user-off"></i><p>No pending users found.</p></div>';
-        return;
-      }
-      
-      list.innerHTML = users.map(u => `
-        <div class="user-row">
-          <div class="user-info">
-            <span class="name">${u.username}</span>
-            <span class="email">${u.email}</span>
-          </div>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <select class="role-select" id="role-${u.id}">
-              <option value="MS">MS</option>
-              <option value="Undergrad">Undergrad</option>
-              <option value="Project-Staff">Project-Staff</option>
-              <option value="Lab-Admin">Lab-Admin</option>
-              <option value="Professor">Professor</option>
-              <option value="Interns">Interns</option>
-            </select>
-            <button class="btn-promote" onclick="promoteUser('${u.id}')">Promote</button>
-          </div>
-        </div>
-      `).join('');
+      renderUserList(users);
     } catch (e) {
       showNotification('Error loading users: ' + e.message);
+      list.innerHTML = '<div class="empty-state"><i class="ti ti-alert-circle"></i><p>Failed to load users.</p></div>';
     }
   }
 
-  async function promoteUser(userId) {
-    const role = document.getElementById(`role-${userId}`).value;
+  // Keep legacy name as alias in case called elsewhere
+  async function loadPendingUsers() { return loadAllUsers(); }
+
+  function renderUserList(users) {
+    const list = document.getElementById('pendingUsersList');
+    if (!users.length) {
+      list.innerHTML = '<div class="empty-state"><i class="ti ti-users"></i><p>No users found.</p></div>';
+      return;
+    }
+    const VALID_ROLES = ['Professor', 'Lab-Admin', 'MS', 'Project-Staff', 'Undergrad', 'Interns', 'Pending'];
+    list.innerHTML = users.map(u => `
+      <div class="user-row">
+        <div class="user-info">
+          <span class="name">${escapeHtml(u.username)}</span>
+          <span class="email">${escapeHtml(u.email)}</span>
+          <span class="role-badge ${getRoleBadgeClass(u.role)}" style="margin-top:4px;">${escapeHtml(u.role)}</span>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+          <select class="role-select" id="role-${u.id}">
+            ${VALID_ROLES.map(r => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${r}</option>`).join('')}
+          </select>
+          <button class="btn-promote" onclick="promoteUser('${u.id}', '${escapeHtml(u.username)}')">Assign</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function promoteUser(userId, username) {
+    const selectEl = document.getElementById(`role-${userId}`);
+    if (!selectEl) return;
+    const role = selectEl.value;
+    const btn = selectEl.parentElement?.querySelector('.btn-promote');
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
     try {
       const res = await fetch(`${API_BASE}/api/users/${userId}/role`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ role })
       });
-      if (!res.ok) throw new Error('Promotion failed');
-      showNotification('User promoted successfully!', true);
-      loadPendingUsers();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Server error ${res.status}`);
+      }
+      showNotification(`${username} assigned role: ${role}`, true);
+      loadAllUsers();
     } catch (e) {
       showNotification('Error: ' + e.message);
+      if (btn) { btn.disabled = false; btn.textContent = 'Assign'; }
     }
   }
 
