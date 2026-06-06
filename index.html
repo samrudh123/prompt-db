@@ -1272,7 +1272,7 @@
     flex-shrink: 0;
   }
   .user-avatar-btn:hover {
-    box-shadow: 0 0 0 3px var(--accent-soft);
+    box-shadow: 0 0 0 3px var(--avatar-ring, var(--accent-soft));
     transform: scale(1.06);
   }
   .user-dropdown {
@@ -1352,10 +1352,10 @@
   .dark-mode .role-ms { background: #0c1a33; color: #60A5FA; }
   .dark-mode .role-ms::before { background: #3B82F6; }
 
-  .role-project-staff { background: #DBEAFE; color: #1E40AF; }
-  .role-project-staff::before { background: #3B82F6; }
-  .dark-mode .role-project-staff { background: #0c1a33; color: #60A5FA; }
-  .dark-mode .role-project-staff::before { background: #3B82F6; }
+  .role-project-staff { background: #FEF0E6; color: #9A3412; }
+  .role-project-staff::before { background: #F97316; }
+  .dark-mode .role-project-staff { background: #2c1200; color: #FB923C; }
+  .dark-mode .role-project-staff::before { background: #F97316; }
 
   .role-undergrad { background: #D1FAE5; color: #065F46; }
   .role-undergrad::before { background: #10B981; }
@@ -1518,15 +1518,36 @@
           <div class="prompt-list" id="promptList"></div>
         </div>
         <div class="list-view" id="adminView" style="display:none; flex-direction:column; overflow:hidden;">
-          <div class="admin-container" style="overflow-y:auto;">
-            <div style="display:flex; align-items:center; gap:12px; margin-bottom:4px;">
-              <button onclick="showPromptList()" class="btn-cancel" style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; font-size:12px;">
+          <div class="admin-container" style="overflow-y:auto; display:flex; flex-direction:column; gap:16px; height:100%;">
+            <!-- Header row -->
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+              <button onclick="showPromptList()" class="btn-cancel" style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; font-size:12px; flex-shrink:0;">
                 <i class="ti ti-arrow-left" aria-hidden="true"></i> Back
               </button>
-              <h2 style="margin-bottom:0;">Manage Users</h2>
+              <div>
+                <h2 style="margin-bottom:0; font-size:17px;">Manage Users</h2>
+                <p style="font-size:11px; color:var(--text-secondary); font-family:var(--mono); margin:2px 0 0;">Assign roles. Changes take effect immediately.</p>
+              </div>
+              <button onclick="loadAllUsers()" class="btn-cancel" style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; font-size:12px; margin-left:auto; flex-shrink:0;" title="Refresh user list">
+                <i class="ti ti-refresh" aria-hidden="true"></i> Refresh
+              </button>
             </div>
-            <p style="font-size:12px; color:var(--text-secondary); font-family:var(--mono); margin-bottom:12px;">Assign roles to all users. Changes take effect immediately.</p>
-            <div id="pendingUsersList" class="prompt-list"></div>
+            <!-- Filter row -->
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <select id="adminRoleFilter" class="role-select" style="min-width:140px;" onchange="applyAdminFilter()">
+                <option value="">All roles</option>
+                <option value="Pending">Pending</option>
+                <option value="Professor">Professor</option>
+                <option value="Lab-Admin">Lab-Admin</option>
+                <option value="MS">MS</option>
+                <option value="Project-Staff">Project-Staff</option>
+                <option value="Undergrad">Undergrad</option>
+                <option value="Interns">Interns</option>
+              </select>
+              <span id="adminUserCount" style="font-size:11px; color:var(--text-secondary); font-family:var(--mono);"></span>
+            </div>
+            <!-- User list -->
+            <div id="pendingUsersList" class="prompt-list" style="flex:1;"></div>
           </div>
         </div>
       </div>
@@ -1797,16 +1818,31 @@
 
   function getRoleBadgeClass(role) {
     const map = {
-      'Professor': 'role-professor',
-      'Lab-Admin': 'role-lab-admin',
-      'MS': 'role-ms',
+      'Professor':     'role-professor',
+      'Lab-Admin':     'role-lab-admin',
+      'MS':            'role-ms',
       'Project-Staff': 'role-project-staff',
-      'Undergrad': 'role-undergrad',
-      'Interns': 'role-interns',
-      'Bot': 'role-bot',
-      'Pending': 'role-pending'
+      'Undergrad':     'role-undergrad',
+      'Interns':       'role-interns',
+      'Bot':           'role-bot',
+      'Pending':       'role-pending'
     };
-    return map[role] || 'role-ms';
+    return map[role] || 'role-pending';
+  }
+
+  // Returns { bg, ring } CSS color strings for the avatar circle per role
+  function getRoleAvatarColors(role) {
+    const map = {
+      'Professor':     { bg: '#E5A613', ring: 'rgba(229,166,19,0.28)' },
+      'Lab-Admin':     { bg: '#E24B4A', ring: 'rgba(226,75,74,0.28)'  },
+      'MS':            { bg: '#3B82F6', ring: 'rgba(59,130,246,0.28)' },
+      'Project-Staff': { bg: '#F97316', ring: 'rgba(249,115,22,0.28)' },
+      'Undergrad':     { bg: '#10B981', ring: 'rgba(16,185,129,0.28)' },
+      'Interns':       { bg: '#10B981', ring: 'rgba(16,185,129,0.28)' },
+      'Bot':           { bg: '#7C3AED', ring: 'rgba(124,58,237,0.28)' },
+      'Pending':       { bg: '#9CA3AF', ring: 'rgba(156,163,175,0.28)'}
+    };
+    return map[role] || { bg: '#5346D6', ring: 'rgba(83,70,214,0.28)' };
   }
 
   function updateUserAvatar() {
@@ -1817,7 +1853,12 @@
     const roleEl = document.getElementById('dropdownRole');
     const dropdown = document.getElementById('userDropdown');
     
-    if (btn) btn.textContent = (userProfile.username || '?')[0].toUpperCase();
+    if (btn) {
+      btn.textContent = (userProfile.username || '?')[0].toUpperCase();
+      const colors = getRoleAvatarColors(userProfile.role);
+      btn.style.background = colors.bg;
+      btn.style.setProperty('--avatar-ring', colors.ring);
+    }
     if (nameEl) nameEl.textContent = userProfile.username || '—';
     if (emailEl) emailEl.textContent = userProfile.email || '—';
     if (roleEl) {
@@ -1870,39 +1911,65 @@
     const list = document.getElementById('pendingUsersList');
     list.innerHTML = '<div class="empty-state"><i class="ti ti-loader" style="animation:spin 1s linear infinite"></i><p>Loading users…</p></div>';
     try {
-      // Fetch all users (pending endpoint — we extend with a separate all-users call)
       const res = await fetch(`${API_BASE}/api/users/all`, { headers: authHeaders() });
-      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      if (!res.ok) {
+        // Try to surface the backend error message
+        let detail = `Server error ${res.status}`;
+        try { const j = await res.json(); detail = j.detail || detail; } catch(_) {}
+        console.error('[Admin] /api/users/all failed:', res.status, detail);
+        throw new Error(detail);
+      }
       const users = await res.json();
-      renderUserList(users);
+      console.log('[Admin] Loaded', users.length, 'users');
+      renderUserList(Array.isArray(users) ? users : []);
     } catch (e) {
       showNotification('Error loading users: ' + e.message);
-      list.innerHTML = '<div class="empty-state"><i class="ti ti-alert-circle"></i><p>Failed to load users.</p></div>';
+      list.innerHTML = `<div class="empty-state"><i class="ti ti-alert-circle"></i><p>Failed to load users.<br><small style="font-family:var(--mono);opacity:0.7;">${escapeHtml(e.message)}</small></p></div>`;
     }
   }
 
   // Keep legacy name as alias in case called elsewhere
   async function loadPendingUsers() { return loadAllUsers(); }
 
+  let _allAdminUsers = [];  // cache for filter
+
   function renderUserList(users) {
+    _allAdminUsers = users;
+    applyAdminFilter();
+  }
+
+  function applyAdminFilter() {
     const list = document.getElementById('pendingUsersList');
-    if (!users.length) {
-      list.innerHTML = '<div class="empty-state"><i class="ti ti-users"></i><p>No users found.</p></div>';
+    const countEl = document.getElementById('adminUserCount');
+    const filterRole = document.getElementById('adminRoleFilter')?.value || '';
+    const filtered = filterRole
+      ? _allAdminUsers.filter(u => u.role === filterRole)
+      : _allAdminUsers;
+
+    if (countEl) countEl.textContent = `${filtered.length} of ${_allAdminUsers.length} user${_allAdminUsers.length !== 1 ? 's' : ''}`;
+
+    if (!filtered.length) {
+      list.innerHTML = `<div class="empty-state"><i class="ti ti-users"></i><p>${filterRole ? `No users with role "${filterRole}".` : 'No users found.'}</p></div>`;
       return;
     }
     const VALID_ROLES = ['Professor', 'Lab-Admin', 'MS', 'Project-Staff', 'Undergrad', 'Interns', 'Pending'];
-    list.innerHTML = users.map(u => `
-      <div class="user-row">
+    list.innerHTML = filtered.map(u => `
+      <div class="user-row" id="user-row-${u.id}">
         <div class="user-info">
-          <span class="name">${escapeHtml(u.username)}</span>
-          <span class="email">${escapeHtml(u.email)}</span>
-          <span class="role-badge ${getRoleBadgeClass(u.role)}" style="margin-top:4px;">${escapeHtml(u.role)}</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="width:32px; height:32px; border-radius:50%; background:${getRoleAvatarColors(u.role).bg}; color:#fff; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; flex-shrink:0; font-family:var(--sans);">${escapeHtml((u.username||'?')[0].toUpperCase())}</div>
+            <div>
+              <span class="name">${escapeHtml(u.username)}</span>
+              <span class="email" style="display:block;">${escapeHtml(u.email)}</span>
+            </div>
+          </div>
+          <span class="role-badge ${getRoleBadgeClass(u.role)}" style="margin-top:6px;">${escapeHtml(u.role)}</span>
         </div>
         <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
           <select class="role-select" id="role-${u.id}">
             ${VALID_ROLES.map(r => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${r}</option>`).join('')}
           </select>
-          <button class="btn-promote" onclick="promoteUser('${u.id}', '${escapeHtml(u.username)}')">Assign</button>
+          <button class="btn-promote" onclick="promoteUser('${u.id}', '${escapeHtml(u.username).replace(/'/g,"\\'")}')">Assign</button>
         </div>
       </div>
     `).join('');
@@ -1924,8 +1991,11 @@
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || `Server error ${res.status}`);
       }
-      showNotification(`${username} assigned role: ${role}`, true);
-      loadAllUsers();
+      showNotification(`${username} → ${role}`, true);
+      // Update local cache and re-render without a full network fetch
+      const idx = _allAdminUsers.findIndex(u => u.id === userId);
+      if (idx !== -1) { _allAdminUsers[idx].role = role; }
+      applyAdminFilter();
     } catch (e) {
       showNotification('Error: ' + e.message);
       if (btn) { btn.disabled = false; btn.textContent = 'Assign'; }
