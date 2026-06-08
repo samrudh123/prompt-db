@@ -597,9 +597,10 @@
   .card-header { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
   .card-title { font-size: 14px; font-weight: 500; color: var(--text-primary); flex: 1; padding-right: 64px; }
   .card-actions {
-    display: flex; gap: 6px; opacity: 1; transition: opacity 0.12s;
+    display: flex; gap: 6px; opacity: 0; transition: opacity 0.12s;
     position: absolute; top: 10px; right: 10px;
   }
+  .prompt-card:hover .card-actions { opacity: 1; }
   .icon-btn {
     background: transparent; border: none; cursor: pointer;
     color: var(--text-secondary); font-size: 15px; padding: 2px;
