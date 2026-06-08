@@ -1367,6 +1367,11 @@
   .dark-mode .role-interns { background: #052e16; color: #34D399; }
   .dark-mode .role-interns::before { background: #1ABC9C; }
 
+  .role-server-admin { background: #EBEBFF; color: #683CE7; }
+  .role-server-admin::before { background: #683CE7; }
+  .dark-mode .role-server-admin { background: #1a143a; color: #B39DFF; }
+  .dark-mode .role-server-admin::before { background: #683CE7; }
+
   .role-bot { background: #EDE9FE; color: #5B21B6; }
   .role-bot::before { background: #7C3AED; }
   .dark-mode .role-bot { background: #1e1033; color: #C4B5FD; }
@@ -1543,6 +1548,7 @@
                 <option value="Project-Staff">Project-Staff</option>
                 <option value="Undergrad">Undergrad</option>
                 <option value="Interns">Interns</option>
+                <option value="Server-Admin">Server Admin</option>
               </select>
               <span id="adminUserCount" style="font-size:11px; color:var(--text-secondary); font-family:var(--mono);"></span>
             </div>
@@ -1826,7 +1832,8 @@
       'Undergrad':     'role-undergrad',
       'Interns':       'role-interns',
       'Bot':           'role-bot',
-      'Pending':       'role-pending'
+      'Pending':       'role-pending',
+      'Server-Admin':  'role-server-admin'
     };
     return map[role] || 'role-pending';
   }
@@ -1841,7 +1848,8 @@
       'Undergrad':     { bg: '#10B981', ring: 'rgba(16,185,129,0.28)' },
       'Interns':       { bg: '#1ABC9C', ring: 'rgba(26,188,156,0.28)' },
       'Bot':           { bg: '#7C3AED', ring: 'rgba(124,58,237,0.28)' },
-      'Pending':       { bg: '#9CA3AF', ring: 'rgba(156,163,175,0.28)'}
+      'Pending':       { bg: '#9CA3AF', ring: 'rgba(156,163,175,0.28)'},
+      'Server-Admin':   { bg: '#683CE7', ring: 'rgba(104,60,231,0.28)'}
     };
     return map[role] || { bg: '#5346D6', ring: 'rgba(83,70,214,0.28)' };
   }
@@ -1953,7 +1961,7 @@
       list.innerHTML = `<div class="empty-state"><i class="ti ti-users"></i><p>${filterRole ? `No users with role "${filterRole}".` : 'No users found.'}</p></div>`;
       return;
     }
-    const VALID_ROLES = ['Professor', 'Lab-Admin', 'MS', 'Project-Staff', 'Undergrad', 'Interns', 'Pending'];
+    const VALID_ROLES = ['Professor', 'Lab-Admin', 'MS', 'Project-Staff', 'Undergrad', 'Interns', 'Pending', 'Server-Admin'];
     list.innerHTML = filtered.map(u => `
       <div class="user-row" id="user-row-${u.id}">
         <div class="user-info">
