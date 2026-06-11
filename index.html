@@ -1240,7 +1240,7 @@
       </div>
       <div class="cat-list" id="catList"></div>
       <div class="sidebar-footer">
-        <button class="btn-new" onclick="openModal()">
+        <button class="btn-new" id="btnNewPrompt" onclick="openModal()">
           <span class="btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 5v14" />
@@ -1629,6 +1629,11 @@
     if (roleEl) {
       roleEl.textContent = userProfile.role || '—';
       roleEl.className = 'role-badge ' + getRoleBadgeClass(userProfile.role);
+    }
+    
+    const btnNew = document.getElementById('btnNewPrompt');
+    if (btnNew) {
+      btnNew.style.display = userProfile.role === 'Pending' ? 'none' : 'flex';
     }
     
     // Admin Link

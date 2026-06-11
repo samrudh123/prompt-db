@@ -184,12 +184,20 @@ async def update_user_role(user_id: str, body: RoleUpdateBody, admin_id: str = D
 @app.get("/api/prompts")
 async def list_prompts(user_id: str = Depends(get_user)):
     """List prompts that are public, owned by the user, or are system prompts."""
-    # Combined filter: is_public=true OR owner=user OR owner=system
-    query_filter = f"is_public.eq.true,user_id.eq.{user_id}"
-    if SYSTEM_USER_ID:
-        query_filter += f",user_id.eq.{SYSTEM_USER_ID}"
-    
-    res = supabase_admin.table("prompts").select("*, profiles(username, role)").or_(query_filter).execute()
+    # Fetch user role
+    user_profile = supabase_admin.table("profiles").select("role").eq("id", user_id).single().execute()
+    user_role = user_profile.data.get("role") if user_profile.data else 'Pending'
+
+    if user_role == "Pending":
+        # Only prompts owned by Bot users for Pending/unverified users
+        # We use !inner to filter by the joined profile role
+        res = supabase_admin.table("prompts").select("*, profiles!inner(username, role)").eq("profiles.role", "Bot").execute()
+    else:
+        # Combined filter: is_public=true OR owner=user OR owner=system (Bot)
+        query_filter = f"is_public.eq.true,user_id.eq.{user_id}"
+        if SYSTEM_USER_ID:
+            query_filter += f",user_id.eq.{SYSTEM_USER_ID}"
+        res = supabase_admin.table("prompts").select("*, profiles(username, role)").or_(query_filter).execute()
     data = res.data
     
     # Mark system prompts and flatten profile data
@@ -207,7 +215,8 @@ async def list_prompts(user_id: str = Depends(get_user)):
             p["username"] = profile.get("username")
             p["role"] = profile.get("role")
         
-        p["is_system"] = (p["user_id"] == SYSTEM_USER_ID)
+        # A prompt is a system prompt if its owner has the 'Bot' role
+        p["is_system"] = (profile and profile.get("role") == "Bot")
         
     data.sort(key=lambda x: x.get('created_at') or x.get('created', ''), reverse=True)
     return JSONResponse(data)
