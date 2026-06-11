@@ -2144,9 +2144,9 @@
         headers: authHeaders(),
         body: JSON.stringify({ is_public: !currentStatus })
       });
-      if (!res.ok) throw new Error('Failed to update public status');
-      showNotification('Visibility updated!', true);
-      await loadFromStorage();
+       if (!res.ok) throw new Error('Failed to update public status');
+       showNotification('Visibility updated!', false, 'info');
+       await loadFromStorage();
     } catch(e) {
       showNotification('Error: ' + e.message);
     }
