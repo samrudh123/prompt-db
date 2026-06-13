@@ -1,5 +1,8 @@
 import os
 import json
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from pathlib import Path
 from typing import AsyncGenerator, Tuple
 
@@ -15,6 +18,12 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 HERE = Path(__file__).resolve().parent
 load_dotenv(override=True)
+
+SMTP_HOST = os.getenv("SMTP_HOST")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
+SMTP_USER = os.getenv("SMTP_USER")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+EMAIL_FROM = os.getenv("EMAIL_FROM")
 
 app = FastAPI()
 supabase_admin: Client = create_client(
@@ -169,6 +178,29 @@ async def list_all_users(admin_id: str = Depends(get_admin_user)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch users: {str(e)}")
 
+async def send_role_assignment_email(user_email: str, role: str):
+    if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM]):
+        print("Email configuration is missing. Skipping email sending.")
+        return
+
+    subject = "Your role has been updated!"
+    body = f"Hello,\n\nYour role in the Prompt Database has been updated to: {role}.\n\nBest regards,\nPrompt DB Admin"
+
+    message = MIMEMultipart()
+    message["From"] = EMAIL_FROM
+    message["To"] = user_email
+    message["Subject"] = subject
+    message.attach(MIMEText(body, "plain"))
+
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.send_message(message)
+    except Exception as e:
+        print(f"Failed to send email to {user_email} via Gmail SMTP: {e}")
+        raise e
+
 @app.patch("/api/users/{user_id}/role")
 async def update_user_role(user_id: str, body: RoleUpdateBody, admin_id: str = Depends(get_admin_user)):
     """Update a user's role. Admin only."""
@@ -178,6 +210,14 @@ async def update_user_role(user_id: str, body: RoleUpdateBody, admin_id: str = D
     res = supabase_admin.table("profiles").update({"role": body.role}).eq("id", user_id).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    user_email = res.data[0].get("email")
+    if user_email:
+        try:
+            await send_role_assignment_email(user_email, body.role)
+        except Exception as e:
+            print(f"Failed to send notification email to {user_email}: {e}")
+
     return JSONResponse(res.data[0])
 
 # ── Prompt CRUD endpoints ────────────────────────────────────────────
