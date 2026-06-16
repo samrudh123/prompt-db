@@ -1189,11 +1189,11 @@
   <div id="notificationContainer" class="notification-container"></div>
   <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeMobileDrawer()"></div>
     <div id="authScreen" class="auth-screen dark-mode">
-      <div class="auth-card">
+      <div class="auth-card" id="authMainCard">
         <h2>Prompt DB</h2>
 
         <!-- Login / Signup tabs -->
-        <div class="auth-tabs">
+        <div class="auth-tabs" id="authTabs">
           <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Sign In</button>
           <button class="auth-tab" id="tabSignup" onclick="switchAuthTab('signup')">Sign Up</button>
         </div>
@@ -1205,8 +1205,11 @@
             <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter') login()">
             <i class="ti ti-eye password-toggle" onclick="togglePassword('loginPassword', this)"></i>
           </div>
-          <button class="auth-submit" onclick="login()">Sign In</button>
-          <p class="auth-switch">Don't have an account? <a onclick="switchAuthTab('signup')">Sign up</a></p>
+           <button class="auth-submit" onclick="login()">Sign In</button>
+           <div style="display:flex; flex-direction:column; align-items:center; gap:8px; margin-top:8px;">
+             <p class="auth-switch" style="margin:0;">Don't have an account? <a onclick="switchAuthTab('signup')">Sign up</a></p>
+             <a onclick="showForgotPassword()" style="font-size:12px; color:var(--accent); cursor:pointer; text-decoration:none; font-weight:500;">Forgot password?</a>
+           </div>
         </div>
 
         <!-- Signup form -->
@@ -1221,7 +1224,38 @@
           <p class="auth-switch">Already have an account? <a onclick="switchAuthTab('login')">Sign in</a></p>
         </div>
       </div>
+
+      <!-- Forgot Password Card -->
+      <div class="auth-card" id="forgotPasswordCard" style="display:none;">
+        <h2>Reset Password</h2>
+        <p style="font-size:13px; color:var(--text-secondary); text-align:center; margin-bottom:16px;">Enter your email address and we'll send you a reset link.</p>
+        <div class="auth-form">
+          <input id="forgotEmail" type="email" placeholder="Email address" autocomplete="email">
+          <button class="auth-submit" onclick="requestPasswordReset()">Send Reset Link</button>
+          <div class="auth-switch">
+            <a onclick="showLoginScreen()">Back to Sign In</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reset Password Card -->
+      <div class="auth-card" id="resetPasswordCard" style="display:none;">
+        <h2>Set New Password</h2>
+        <p style="font-size:13px; color:var(--text-secondary); text-align:center; margin-bottom:16px;">Please enter your new password below.</p>
+        <div class="auth-form">
+          <div class="password-wrap">
+            <input id="resetPassword" type="password" placeholder="New Password" autocomplete="new-password" onkeydown="if(event.key==='Enter') submitNewPassword()">
+            <i class="ti ti-eye password-toggle" onclick="togglePassword('resetPassword', this)"></i>
+          </div>
+          <div class="password-wrap">
+            <input id="resetPasswordConfirm" type="password" placeholder="Confirm New Password" autocomplete="new-password" onkeydown="if(event.key==='Enter') submitNewPassword()">
+            <i class="ti ti-eye password-toggle" onclick="togglePassword('resetPasswordConfirm', this)"></i>
+          </div>
+          <button class="auth-submit" onclick="submitNewPassword()">Update Password</button>
+        </div>
+      </div>
     </div>
+
   </div>
   <div class="app" id="app">
     <div class="sidebar">
@@ -1430,7 +1464,85 @@
 
   let currentSession = null;
 
+  async function requestPasswordReset() {
+    const email = document.getElementById('forgotEmail').value.trim();
+    if (!email) {
+      showNotification('Please enter your email address');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Request failed');
+      showNotification(data.message || 'Reset link sent to your email!', false, 'info');
+    } catch (e) {
+      showNotification('Error: ' + e.message);
+    }
+  }
+
+  async function submitNewPassword() {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    const newPassword = document.getElementById('resetPassword').value;
+    const confirmPassword = document.getElementById('resetPasswordConfirm').value;
+
+    if (!token) {
+      showNotification('Invalid reset link');
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      showNotification('Password must be at least 6 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showNotification('Passwords do not match');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ token, new_password: newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Reset failed');
+      showNotification('Password updated successfully! Signing in...', true);
+      // Clear URL params and show login
+      window.history.replaceState({}, document.title, window.location.pathname);
+      showLoginScreen();
+    } catch (e) {
+      showNotification('Error: ' + e.message);
+    }
+  }
+
+  function showForgotPassword() {
+    document.getElementById('authMainCard').style.display = 'none';
+    document.getElementById('forgotPasswordCard').style.display = 'flex';
+  }
+
+  function showLoginScreen() {
+    document.getElementById('forgotPasswordCard').style.display = 'none';
+    document.getElementById('resetPasswordCard').style.display = 'none';
+    document.getElementById('authMainCard').style.display = 'flex';
+  }
+
   async function initAuth() {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+      document.getElementById('authScreen').style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('authMainCard').style.display = 'none';
+      document.getElementById('forgotPasswordCard').style.display = 'none';
+      document.getElementById('resetPasswordCard').style.display = 'flex';
+      return;
+    }
+
     const { data } = await sb.auth.getSession();
     currentSession = data.session;
 
