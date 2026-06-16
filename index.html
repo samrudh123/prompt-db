@@ -1542,6 +1542,8 @@
         isRecoveringPassword = true;
         showResetPasswordScreen();
       } else if (session && !isRecoveringPassword) {
+        // Clear the hash from the URL to remove access tokens from history
+        window.history.replaceState({}, document.title, window.location.pathname);
         showApp();
       } else if (!session && !isRecoveringPassword) {
         showLogin();
@@ -1558,7 +1560,7 @@
   function showLogin() {
     document.getElementById('authScreen').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
-    switchAuthTab('login');
+    showLoginScreen();
   }
 
   function switchAuthTab(tab) {
