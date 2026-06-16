@@ -65,12 +65,12 @@ The application follows a modern client-server architecture:
 
 1. **Database Setup:**
    Run the provided SQL scripts in your Supabase SQL Editor in the following order:
-   - `backend/schema.sql`
-   - `backend/seed.sql`
-   - `backend/update_prompts.sql`
+   - `seed.sql`
+   - `schema.sql`
+   - `update_prompts.sql`
 
 2. **Environment Configuration:**
-   Create a `.env` file in the `backend/` directory:
+   Create a `.env` file:
    ```env
    SUPABASE_URL=your_supabase_url
    SUPABASE_SERVICE_KEY=your_service_role_key
@@ -81,9 +81,8 @@ The application follows a modern client-server architecture:
 
 3. **Run Backend:**
    ```bash
-   cd backend
    pip install -r requirements.txt  # (If applicable)
-   uvicorn app:app --reload
+   uvicorn app:app --reload --host 0.0.0.0 --port 8000
    ```
 
 4. **Expose Backend:**
@@ -91,10 +90,10 @@ The application follows a modern client-server architecture:
    ```bash
    ngrok http 8000
    ```
-   Copy the ngrok URL and update the `API_BASE` in `frontend/index.html`.
+   Copy the ngrok URL and update the `API_BASE` in `index.html`.
 
 5. **Run Frontend:**
-   Open `frontend/index.html` in your browser or serve it via a local web server.
+   Open `index.html` in your browser or serve it via a local web server.
 
 ---
 *Built with ❤️ for researchers and prompt engineers.*
