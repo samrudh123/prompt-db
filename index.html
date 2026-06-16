@@ -1535,12 +1535,15 @@
 
     sb.auth.onAuthStateChange((event, session) => {
       currentSession = session;
-      if (event === 'PASSWORD_RECOVERY') {
+      if (event === 'SIGNED_OUT') {
+        isRecoveringPassword = false;
+        showLogin();
+      } else if (event === 'PASSWORD_RECOVERY') {
         isRecoveringPassword = true;
         showResetPasswordScreen();
       } else if (session && !isRecoveringPassword) {
         showApp();
-      } else if (!session) {
+      } else if (!session && !isRecoveringPassword) {
         showLogin();
       }
     })
