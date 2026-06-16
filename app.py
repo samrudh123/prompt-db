@@ -70,13 +70,6 @@ class LoginBody(BaseModel):
     email_or_username: str
     password: str
 
-class ForgotPasswordBody(BaseModel):
-    email: str
-
-class ResetPasswordBody(BaseModel):
-    token: str
-    new_password: str
-
 async def get_user(creds: HTTPAuthorizationCredentials = Depends(security)):
     """Verify the JWT from the frontend and return the user id."""
     try:
@@ -159,64 +152,6 @@ async def login(body: LoginBody):
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-@app.post("/api/forgot-password")
-async def forgot_password(body: ForgotPasswordBody):
-    """Request a password reset link."""
-    # Find user in profiles table
-    res = supabase_admin.table("profiles").select("id").eq("email", body.email).execute()
-    if not res.data:
-        # For security, don't reveal if email exists. Just return a generic success.
-        return JSONResponse({"message": "If an account exists with this email, a reset link has been sent."})
-
-    user_id = res.data[0]["id"]
-    token = secrets.token_urlsafe(32)
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
-
-    # Store token in DB
-    supabase_admin.table("password_resets").insert({
-        "user_id": user_id,
-        "token": token,
-        "expires_at": expires_at.isoformat()
-    }).execute()
-
-    try:
-        await send_password_reset_email(body.email, token)
-    except Exception as e:
-        print(f"Error sending reset email: {e}")
-        # Still return success to avoid email enumeration
-
-    return JSONResponse({"message": "If an account exists with this email, a reset link has been sent."})
-
-@app.post("/api/reset-password")
-async def reset_password(body: ResetPasswordBody):
-    """Reset password using a valid token."""
-    res = supabase_admin.table("password_resets").select("user_id").eq("token", body.token).execute()
-    if not res.data:
-        raise HTTPException(status_code=400, detail="Invalid or expired token")
-
-    # Check expiration (though we could also do this in SQL)
-    # Note: The token was stored as ISO string, we should verify it.
-    # To keep it simple, let's just trust the token if it exists and we handle cleanup periodically.
-    # Actually, let's be thorough.
-    token_data = supabase_admin.table("password_resets").select("expires_at").eq("token", body.token).single().execute()
-    expires_at = datetime.fromisoformat(token_data.data["expires_at"])
-    if datetime.now(timezone.utc) > expires_at:
-        supabase_admin.table("password_resets").delete().eq("token", body.token).execute()
-        raise HTTPException(status_code=400, detail="Token has expired")
-
-    user_id = res.data[0]["user_id"]
-
-    try:
-        # Update password using Supabase Admin API
-        supabase_admin.auth.admin.update_user_by_id(user_id, {"password": body.new_password})
-        
-        # Delete token after successful reset
-        supabase_admin.table("password_resets").delete().eq("token", body.token).execute()
-        
-        return JSONResponse({"message": "Password has been successfully reset"})
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to reset password: {str(e)}")
-
 @app.get("/api/profile")
 async def get_profile(user_id: str = Depends(get_user)):
     """Return the current user's profile (username, email, role)."""
@@ -295,31 +230,6 @@ async def send_signup_notification(user_email: str, username: str):
             server.send_message(message)
     except Exception as e:
         print(f"Failed to send signup notification to {EMAIL_FROM}: {e}")
-        raise e
-
-async def send_password_reset_email(user_email: str, token: str):
-    if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM]):
-        print("Email configuration is missing. Skipping email sending.")
-        return
-
-    # Using the production frontend URL from CORS allow_origins
-    reset_link = f"https://samrudh123.github.io/?token={token}"
-    subject = "Password Reset Request"
-    body = f"Hello,\n\nWe received a request to reset your password. Please click the link below to set a new password:\n\n{reset_link}\n\nThis link will expire in 1 hour.\n\nBest regards,\nPrompt DB System"
-
-    message = MIMEMultipart()
-    message["From"] = EMAIL_FROM
-    message["To"] = user_email
-    message["Subject"] = subject
-    message.attach(MIMEText(body, "plain"))
-
-    try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.send_message(message)
-    except Exception as e:
-        print(f"Failed to send password reset email to {user_email}: {e}")
         raise e
 
 @app.patch("/api/users/{user_id}/role")
