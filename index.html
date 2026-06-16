@@ -1499,6 +1499,10 @@
       const { error } = await sb.auth.updateUser({ password: newPassword });
       if (error) throw error;
       isRecoveringPassword = false;
+      
+      // Clear the recovery hash from the URL to prevent returning here after logout
+      window.history.replaceState({}, document.title, window.location.pathname);
+      
       showNotification('Password updated successfully!', true);
       showApp();
     } catch (e) {
@@ -1877,6 +1881,7 @@
   }
 
   async function logout() {
+    isRecoveringPassword = false;
     await sb.auth.signOut();
     userProfile = null;
     document.getElementById('userDropdown')?.classList.remove('open');
