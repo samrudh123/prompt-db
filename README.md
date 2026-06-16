@@ -1,6 +1,6 @@
 # Adaptive Prompt Database
 
-An intelligent, role-based repository for managing and running complex AI prompts. This application allows research teams and laboratories to collaborate on a shared library of optimized prompts, complete with dynamic variable injection and a specialized execution environment.
+An intelligent, role-based repository for managing and storing complex AI prompts. This application allows research teams and laboratories to collaborate on a shared library of optimized prompts, complete with dynamic variable injection.
 
 ## 🚀 Key Features
 
@@ -20,7 +20,6 @@ An intelligent, role-based repository for managing and running complex AI prompt
 - **Variable Injection:** Use `{{variable_name}}` syntax within prompts to create reusable templates.
 - **Dynamic Inputs:** Automatically generates input fields for any variables detected in a prompt.
 - **Live Preview:** View how the prompt will look with provided variables before execution.
-- **Streaming Output:** (Supported in server-enabled environments) Provides a real-time, typewriter-style experience for AI responses.
 
 ### 🎨 User Experience
 - **Adaptive UI:** Fully responsive design optimized for desktop, tablet, and mobile devices.
@@ -50,7 +49,7 @@ An intelligent, role-based repository for managing and running complex AI prompt
 
 The application follows a modern client-server architecture:
 
-1. **Frontend (Client):** Hosted on GitHub Pages, the frontend communicates with the backend via RESTful API calls. It handles user interaction, session management via Supabase Auth, and the prompt execution UI.
+1. **Frontend (Client):** Hosted on GitHub Pages, the frontend communicates with the backend via RESTful API calls. It handles user interaction, session management via Supabase Auth, and the prompt modal UI.
 2. **Backend (Server):** A FastAPI server acts as the intermediary, enforcing business logic, performing administrative tasks, and communicating securely with the database using a `service_role` key to bypass RLS for management operations.
 3. **Supabase (Database & Auth):** Serves as the single source of truth for user identity, profile data, and the prompt repository, providing secure storage and automatic trigger-based automation.
 
@@ -65,8 +64,8 @@ The application follows a modern client-server architecture:
 
 1. **Database Setup:**
    Run the provided SQL scripts in your Supabase SQL Editor in the following order:
-   - `seed.sql`
    - `schema.sql`
+   - `seed.sql`
    - `update_prompts.sql`
 
 2. **Environment Configuration:**
