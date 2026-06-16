@@ -1473,7 +1473,7 @@
     }
     try {
       const { error } = await sb.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin,
+        redirectTo: 'https://samrudh123.github.io/prompt-db/',
       });
       if (error) throw error;
       showNotification('If an account exists with this email, a reset link has been sent!', false, 'info');
