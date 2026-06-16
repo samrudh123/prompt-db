@@ -303,7 +303,7 @@ async def send_password_reset_email(user_email: str, token: str):
         return
 
     # Using the production frontend URL from CORS allow_origins
-    reset_link = f"https://samrudh123.github.io/reset-password?token={token}"
+    reset_link = f"https://samrudh123.github.io/?token={token}"
     subject = "Password Reset Request"
     body = f"Hello,\n\nWe received a request to reset your password. Please click the link below to set a new password:\n\n{reset_link}\n\nThis link will expire in 1 hour.\n\nBest regards,\nPrompt DB System"
 
