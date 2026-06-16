@@ -7,6 +7,7 @@ An intelligent, role-based repository for managing and running complex AI prompt
 ### 🔐 Authentication & RBAC
 - **Role-Based Access Control (RBAC):** Granular permissions for different users (Professor, Lab-Admin, MS, Project-Staff, Undergrad, Interns, Pending, Bot, and Server-Admin).
 - **Secure Sign-up/Login:** Integrated with Supabase Auth for secure session management.
+- **Password Recovery:** Native password reset flow allowing users to securely recover account access via email.
 - **Admin Dashboard:** A dedicated management interface for authorized administrators to assign and update user roles.
 
 ### 📝 Prompt Management
