@@ -1463,6 +1463,7 @@
   };
 
   let currentSession = null;
+  let isRecoveringPassword = false;
 
   async function requestPasswordReset() {
     const email = document.getElementById('forgotEmail').value.trim();
@@ -1471,29 +1472,20 @@
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/api/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-        body: JSON.stringify({ email })
+      const { error } = await sb.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Request failed');
-      showNotification(data.message || 'Reset link sent to your email!', false, 'info');
+      if (error) throw error;
+      showNotification('If an account exists with this email, a reset link has been sent!', false, 'info');
     } catch (e) {
       showNotification('Error: ' + e.message);
     }
   }
 
   async function submitNewPassword() {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
     const newPassword = document.getElementById('resetPassword').value;
     const confirmPassword = document.getElementById('resetPasswordConfirm').value;
 
-    if (!token) {
-      showNotification('Invalid reset link');
-      return;
-    }
     if (!newPassword || newPassword.length < 6) {
       showNotification('Password must be at least 6 characters');
       return;
@@ -1504,17 +1496,11 @@
     }
 
     try {
-      const res = await fetch(`${API_BASE}/api/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-        body: JSON.stringify({ token, new_password: newPassword })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Reset failed');
-      showNotification('Password updated successfully! Signing in...', true);
-      // Clear URL params and show login
-      window.history.replaceState({}, document.title, window.location.pathname);
-      showLoginScreen();
+      const { error } = await sb.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      isRecoveringPassword = false;
+      showNotification('Password updated successfully!', true);
+      showApp();
     } catch (e) {
       showNotification('Error: ' + e.message);
     }
@@ -1531,28 +1517,34 @@
     document.getElementById('authMainCard').style.display = 'flex';
   }
 
-  async function initAuth() {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
-    if (token) {
-      document.getElementById('authScreen').style.display = 'flex';
-      document.getElementById('app').style.display = 'none';
-      document.getElementById('authMainCard').style.display = 'none';
-      document.getElementById('forgotPasswordCard').style.display = 'none';
-      document.getElementById('resetPasswordCard').style.display = 'flex';
-      return;
-    }
+  function showResetPasswordScreen() {
+    document.getElementById('authScreen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('authMainCard').style.display = 'none';
+    document.getElementById('forgotPasswordCard').style.display = 'none';
+    document.getElementById('resetPasswordCard').style.display = 'flex';
+  }
 
+  async function initAuth() {
     const { data } = await sb.auth.getSession();
     currentSession = data.session;
 
-    sb.auth.onAuthStateChange((_event, session) => {
+    sb.auth.onAuthStateChange((event, session) => {
       currentSession = session;
-      if (session) showApp();
-      else showLogin();
+      if (event === 'PASSWORD_RECOVERY') {
+        isRecoveringPassword = true;
+        showResetPasswordScreen();
+      } else if (session && !isRecoveringPassword) {
+        showApp();
+      } else if (!session) {
+        showLogin();
+      }
     })
 
-    if (currentSession) showApp();
+    if (currentSession) {
+      if (isRecoveringPassword) showResetPasswordScreen();
+      else showApp();
+    }
     else showLogin();
   }
 
