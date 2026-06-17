@@ -91,6 +91,9 @@ VALID_ROLES = {"Professor", "Lab-Admin", "MS", "Project-Staff", "Undergrad", "In
 @app.post("/api/signup")
 async def signup(body: SignupBody):
     """Create a new user with username, email, and password."""
+    if '@' in body.username:
+        raise HTTPException(status_code=400, detail="Username cannot contain '@'")
+    
     # Check if username is already taken
     existing = supabase_admin.table("profiles").select("id").eq("username", body.username).execute()
     if existing.data:
