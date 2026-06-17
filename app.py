@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import AsyncGenerator, Tuple
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 from pydantic import BaseModel
@@ -89,7 +89,7 @@ async def get_admin_user(user_id: str = Depends(get_user)):
 VALID_ROLES = {"Professor", "Lab-Admin", "MS", "Project-Staff", "Undergrad", "Interns", "Pending", "Server-Admin"}
 
 @app.post("/api/signup")
-async def signup(body: SignupBody):
+async def signup(body: SignupBody, background_tasks: BackgroundTasks):
     """Create a new user with username, email, and password."""
     if '@' in body.username:
         raise HTTPException(status_code=400, detail="Username cannot contain '@'")
@@ -112,10 +112,8 @@ async def signup(body: SignupBody):
         if res.user is None:
             raise HTTPException(status_code=400, detail="Signup failed")
         
-        try:
-            await send_signup_notification(body.email, body.username)
-        except Exception as e:
-            print(f"Failed to send signup notification: {e}")
+        # Send notification in background to avoid blocking response
+        background_tasks.add_task(send_signup_notification, body.email, body.username)
 
         return JSONResponse({
             "user_id": res.user.id,
@@ -236,7 +234,7 @@ async def send_signup_notification(user_email: str, username: str):
         raise e
 
 @app.patch("/api/users/{user_id}/role")
-async def update_user_role(user_id: str, body: RoleUpdateBody, admin_id: str = Depends(get_admin_user)):
+async def update_user_role(user_id: str, body: RoleUpdateBody, admin_id: str = Depends(get_admin_user), background_tasks: BackgroundTasks = Depends()):
     """Update a user's role. Admin only."""
     if body.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail="Invalid role")
@@ -247,10 +245,8 @@ async def update_user_role(user_id: str, body: RoleUpdateBody, admin_id: str = D
     
     user_email = res.data[0].get("email")
     if user_email:
-        try:
-            await send_role_assignment_email(user_email, body.role)
-        except Exception as e:
-            print(f"Failed to send notification email to {user_email}: {e}")
+        # Send email in background to avoid blocking the response
+        background_tasks.add_task(send_role_assignment_email, user_email, body.role)
 
     return JSONResponse(res.data[0])
 

@@ -1587,9 +1587,13 @@
   function showApp() {
     document.getElementById('authScreen').style.display = 'none';
     document.getElementById('app').style.display = 'grid';
-    showPromptList();
-    loadFromStorage();
-    loadUserProfile();
+    
+    // Run initialization tasks in parallel instead of sequentially
+    Promise.all([
+      showPromptList(),
+      loadFromStorage(),
+      loadUserProfile()
+    ]).catch(e => console.error('App init error:', e));
   }
 
   async function login() {
