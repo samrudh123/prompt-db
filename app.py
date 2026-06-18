@@ -234,7 +234,7 @@ async def send_signup_notification(user_email: str, username: str):
         raise e
 
 @app.patch("/api/users/{user_id}/role")
-async def update_user_role(user_id: str, body: RoleUpdateBody, admin_id: str = Depends(get_admin_user), background_tasks: BackgroundTasks = Depends()):
+async def update_user_role(user_id: str, body: RoleUpdateBody, background_tasks: BackgroundTasks, admin_id: str = Depends(get_admin_user)):
     """Update a user's role. Admin only."""
     if body.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail="Invalid role")
