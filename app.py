@@ -263,7 +263,7 @@ async def verify_session(body: VerifyBody, background_tasks: BackgroundTasks, au
     )
 
 @app.post("/api/auth/complete-signup")
-async def complete_signup(body: CompleteSignupBody, auth_user = Depends(get_auth_user)):
+async def complete_signup(body: CompleteSignupBody, background_tasks: BackgroundTasks, auth_user = Depends(get_auth_user)):
     """Finish a Google signup: verify the emailed token, set the chosen
     username, and create the (Pending) profile."""
     if fetch_profile(auth_user.id):
@@ -283,6 +283,9 @@ async def complete_signup(body: CompleteSignupBody, auth_user = Depends(get_auth
         raise HTTPException(status_code=400, detail="Username already taken")
 
     profile = create_profile(auth_user, username=username)
+
+    # Notify the admin that a role assignment is needed (same as normal signup)
+    background_tasks.add_task(send_signup_notification, auth_user.email, username, "Google")
 
     # Clear the used token
     try:
@@ -455,13 +458,22 @@ async def send_role_assignment_email(user_email: str, role: str):
         print(f"Failed to send email to {user_email} via Gmail SMTP: {e}")
         raise e
 
-async def send_signup_notification(user_email: str, username: str):
+async def send_signup_notification(user_email: str, username: str, method: str = "Email/Password"):
     if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM]):
         print("Email configuration is missing. Skipping email sending.")
         return
 
-    subject = "New User Signup Notification"
-    body = f"Hello Admin,\n\nA new user has signed up for the Prompt Database:\n\nUsername: {username}\nEmail: {user_email}\n\nBest regards,\nPrompt DB System"
+    subject = "New User Signup — Role Assignment Needed"
+    body = (
+        "Hello Admin,\n\n"
+        "A new user has signed up for the Prompt Database:\n\n"
+        f"Username: {username}\n"
+        f"Email: {user_email}\n"
+        f"Signup method: {method}\n\n"
+        "They are currently in the 'Pending' role. Please visit the Admin Panel "
+        "to assign them an appropriate role.\n\n"
+        "Best regards,\nPrompt DB System"
+    )
 
     message = MIMEMultipart()
     message["From"] = EMAIL_FROM
