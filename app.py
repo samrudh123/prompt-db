@@ -298,6 +298,21 @@ async def complete_signup(body: CompleteSignupBody, auth_user = Depends(get_auth
         "role": profile["role"],
     }})
 
+@app.post("/api/auth/cancel-signup")
+async def cancel_signup(auth_user = Depends(get_auth_user)):
+    """Abort an incomplete Google signup: if the user never finished
+    verification (no profile yet), delete the auth user so nothing
+    unverified lingers in Supabase."""
+    if fetch_profile(auth_user.id):
+        # Registered users are never deleted here
+        return JSONResponse({"ok": True, "deleted": False})
+    try:
+        supabase_admin.auth.admin.delete_user(auth_user.id)
+        return JSONResponse({"ok": True, "deleted": True})
+    except Exception as e:
+        print(f"Failed to delete incomplete signup {auth_user.id}: {e}")
+        return JSONResponse({"ok": True, "deleted": False})
+
 @app.post("/api/signup")
 async def signup(body: SignupBody, background_tasks: BackgroundTasks):
     """Create a new user with username, email, and password.

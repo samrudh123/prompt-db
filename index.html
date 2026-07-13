@@ -1801,7 +1801,9 @@
       }
       _pendingSignupToken = null;
       localStorage.removeItem('oauth_intent');
-      showNotification('Account created! An admin will approve your access soon.', true);
+      // Single message — suppress the separate "awaiting approval" popup
+      window._pendingNoticeShown = true;
+      showNotification('Account created! An admin will approve your access soon — you can browse the default prompts in the meantime.', true);
       _appShown = true;
       showApp();
     } catch (e) {
@@ -1831,6 +1833,15 @@
   async function cancelGoogleSignup() {
     _pendingSignupToken = null;
     localStorage.removeItem('oauth_intent');
+    // Remove the incomplete (unverified) account from Supabase
+    if (currentSession) {
+      try {
+        await fetch(`${API_BASE}/api/auth/cancel-signup`, {
+          method: 'POST',
+          headers: authHeaders()
+        });
+      } catch (e) { console.error('cancel-signup failed:', e); }
+    }
     await sb.auth.signOut();
   }
 
