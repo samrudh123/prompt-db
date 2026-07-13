@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
-from typing import AsyncGenerator, Tuple
+from typing import AsyncGenerator, Tuple, Optional
 
 import httpx
 from fastapi import FastAPI, HTTPException, BackgroundTasks
@@ -27,6 +27,8 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 EMAIL_FROM = os.getenv("EMAIL_FROM")
+# Where the verification-email link should send users (your GitHub Pages URL)
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://samrudh123.github.io").rstrip("/")
 
 app = FastAPI()
 supabase_admin: Client = create_client(
@@ -111,17 +113,18 @@ def _derive_username(auth_user) -> str:
         candidate = f"{base}_{auth_user.id[:6]}"
     return candidate
 
-def fetch_profile(user_id: str) -> dict | None:
-    """Return the user's profile row, or None if they never registered."""
+def fetch_profile(user_id: str) -> Optional[dict]:
+    """Return the user's profile row, or None if they never registered.
+    (Optional[dict] instead of dict|None: the latter crashes Python 3.9.)"""
     res = supabase_admin.table("profiles").select("*").eq("id", user_id).execute()
     return res.data[0] if res.data else None
 
-def create_profile(auth_user) -> dict:
-    """Create a Pending profile for a first-time Google/OAuth signup."""
+def create_profile(auth_user, username: Optional[str] = None) -> dict:
+    """Create a Pending profile (Google/OAuth signups)."""
     profile = {
         "id": auth_user.id,
         "email": auth_user.email,
-        "username": _derive_username(auth_user),
+        "username": username or _derive_username(auth_user),
         "role": "Pending",
     }
     created = supabase_admin.table("profiles").upsert(profile, on_conflict="id").execute()
@@ -151,14 +154,67 @@ VALID_ROLES = {"Professor", "Lab-Admin", "MS", "Project-Staff", "Undergrad", "In
 class VerifyBody(BaseModel):
     intent: str = "login"  # 'login' or 'signup'
 
+class CompleteSignupBody(BaseModel):
+    token: str
+    username: str
+
+SIGNUP_TOKEN_TTL_HOURS = 24
+
+def _get_pending_signup_token(auth_user) -> Optional[str]:
+    """Return the user's unexpired signup token, or None."""
+    meta = auth_user.user_metadata or {}
+    token = meta.get("signup_token")
+    expires = meta.get("signup_token_expires")
+    if not token or not expires:
+        return None
+    try:
+        if datetime.fromisoformat(expires) < datetime.now(timezone.utc):
+            return None
+    except Exception:
+        return None
+    return token
+
+def send_google_signup_email(user_email: str, link: str):
+    if not all([SMTP_HOST, SMTP_USER, SMTP_PASSWORD, EMAIL_FROM]):
+        print("Email configuration is missing. Skipping email sending.")
+        return
+
+    subject = "Verify your email to finish signing up — Prompt DB"
+    body = (
+        "Hello,\n\n"
+        "You started signing up for the Prompt Database with your Google account.\n"
+        "Click the link below to verify your email and choose your username:\n\n"
+        f"{link}\n\n"
+        f"This link expires in {SIGNUP_TOKEN_TTL_HOURS} hours. "
+        "If you didn't request this, you can ignore this email.\n\n"
+        "Best regards,\nPrompt DB System"
+    )
+
+    message = MIMEMultipart()
+    message["From"] = EMAIL_FROM
+    message["To"] = user_email
+    message["Subject"] = subject
+    message.attach(MIMEText(body, "plain"))
+
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.send_message(message)
+    except Exception as e:
+        print(f"Failed to send signup verification email to {user_email}: {e}")
+
 @app.post("/api/auth/verify")
-async def verify_session(body: VerifyBody, auth_user = Depends(get_auth_user)):
+async def verify_session(body: VerifyBody, background_tasks: BackgroundTasks, auth_user = Depends(get_auth_user)):
     """
     Called by the frontend after every session is established.
-    - Registered user  -> return their profile (any intent).
-    - New Google user with intent 'signup' -> create a Pending profile.
-    - New Google user with intent 'login'  -> delete the just-created
-      auth user and reject: they must sign up first.
+    - Registered user -> return their profile (any intent).
+    - New Google user, intent 'signup' -> email an SMTP verification link;
+      profile is created later at /api/auth/complete-signup once they've
+      clicked the link and chosen a username.
+    - New Google user, intent 'login' -> delete the just-created auth user
+      and reject: they must sign up first. (If they have a pending
+      verification email, keep the account and remind them instead.)
     """
     profile = fetch_profile(auth_user.id)
     if profile:
@@ -168,16 +224,35 @@ async def verify_session(body: VerifyBody, auth_user = Depends(get_auth_user)):
             "role": profile["role"],
         }})
 
-    if body.intent == "signup":
-        profile = create_profile(auth_user)
-        return JSONResponse({"registered": True, "created": True, "profile": {
-            "id": profile["id"],
-            "username": profile["username"],
-            "role": profile["role"],
-        }})
+    pending_token = _get_pending_signup_token(auth_user)
 
-    # intent == 'login' but no account exists: undo the OAuth-created auth
-    # user so a later "Sign up with Google" starts clean.
+    if body.intent == "signup":
+        # Reuse an unexpired token so previously emailed links keep working;
+        # otherwise mint a fresh one.
+        token = pending_token or secrets.token_urlsafe(32)
+        if not pending_token:
+            expires = (datetime.now(timezone.utc) + timedelta(hours=SIGNUP_TOKEN_TTL_HOURS)).isoformat()
+            supabase_admin.auth.admin.update_user_by_id(auth_user.id, {
+                "user_metadata": {"signup_token": token, "signup_token_expires": expires}
+            })
+        link = f"{FRONTEND_URL}/?signup_token={token}"
+        background_tasks.add_task(send_google_signup_email, auth_user.email, link)
+        return JSONResponse({
+            "registered": False,
+            "verification_required": True,
+            "email": auth_user.email
+        })
+
+    # intent == 'login'
+    if pending_token:
+        # Mid-signup: don't delete their account, just point them back
+        raise HTTPException(
+            status_code=403,
+            detail="Please verify your email to finish signing up — check your inbox for the verification link."
+        )
+
+    # No account at all: undo the OAuth-created auth user so a later
+    # "Sign up with Google" starts clean.
     try:
         supabase_admin.auth.admin.delete_user(auth_user.id)
     except Exception as e:
@@ -186,6 +261,42 @@ async def verify_session(body: VerifyBody, auth_user = Depends(get_auth_user)):
         status_code=403,
         detail="No Prompt DB account found for this Google account. Please sign up first."
     )
+
+@app.post("/api/auth/complete-signup")
+async def complete_signup(body: CompleteSignupBody, auth_user = Depends(get_auth_user)):
+    """Finish a Google signup: verify the emailed token, set the chosen
+    username, and create the (Pending) profile."""
+    if fetch_profile(auth_user.id):
+        raise HTTPException(status_code=400, detail="Account already registered")
+
+    pending_token = _get_pending_signup_token(auth_user)
+    if not pending_token or not secrets.compare_digest(pending_token, body.token):
+        raise HTTPException(status_code=403, detail="Invalid or expired verification link. Please sign up again to receive a new one.")
+
+    username = body.username.strip()
+    if '@' in username:
+        raise HTTPException(status_code=400, detail="Username cannot contain '@'")
+    if not re.fullmatch(r"[a-zA-Z0-9._-]{3,30}", username):
+        raise HTTPException(status_code=400, detail="Username must be 3-30 characters (letters, digits, . _ -)")
+    existing = supabase_admin.table("profiles").select("id").eq("username", username).execute()
+    if existing.data:
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    profile = create_profile(auth_user, username=username)
+
+    # Clear the used token
+    try:
+        supabase_admin.auth.admin.update_user_by_id(auth_user.id, {
+            "user_metadata": {"signup_token": None, "signup_token_expires": None}
+        })
+    except Exception as e:
+        print(f"Failed to clear signup token for {auth_user.id}: {e}")
+
+    return JSONResponse({"registered": True, "profile": {
+        "id": profile["id"],
+        "username": profile["username"],
+        "role": profile["role"],
+    }})
 
 @app.post("/api/signup")
 async def signup(body: SignupBody, background_tasks: BackgroundTasks):

@@ -1331,6 +1331,36 @@
           <button class="auth-submit" onclick="submitNewPassword()">Update Password</button>
         </div>
       </div>
+
+      <!-- Google Signup: Verify Email Card -->
+      <div class="auth-card" id="verifyEmailCard" style="display:none;">
+        <h2>Verify Your Email</h2>
+        <p style="font-size:13px; color:var(--text-secondary); text-align:center; margin-bottom:16px;">
+          We've sent a verification link to <strong id="verifyEmailAddress"></strong>.<br>
+          Click the link in that email (in this browser) to finish signing up.
+        </p>
+        <div class="auth-form">
+          <button class="auth-submit" onclick="resendGoogleVerification()">Resend Verification Email</button>
+          <div class="auth-switch">
+            <a onclick="cancelGoogleSignup()">Back to Login</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Google Signup: Choose Username Card -->
+      <div class="auth-card" id="usernameCard" style="display:none;">
+        <h2>Choose Your Username</h2>
+        <p style="font-size:13px; color:var(--text-secondary); text-align:center; margin-bottom:16px;">
+          Your email is verified! Pick a username to complete your Prompt DB account.
+        </p>
+        <div class="auth-form">
+          <input id="googleUsername" type="text" placeholder="Username" autocomplete="username" onkeydown="if(event.key==='Enter') completeGoogleSignup()">
+          <button class="auth-submit" onclick="completeGoogleSignup()">Complete Sign Up</button>
+          <div class="auth-switch">
+            <a onclick="cancelGoogleSignup()">Back to Login</a>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -1592,21 +1622,43 @@
     document.getElementById('forgotPasswordCard').style.display = 'flex';
   }
 
+  function hideAllAuthCards() {
+    ['authMainCard','forgotPasswordCard','resetPasswordCard','verifyEmailCard','usernameCard']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  }
+
   function showLoginScreen() {
-    document.getElementById('forgotPasswordCard').style.display = 'none';
-    document.getElementById('resetPasswordCard').style.display = 'none';
+    hideAllAuthCards();
     document.getElementById('authMainCard').style.display = 'flex';
   }
 
   function showResetPasswordScreen() {
     document.getElementById('authScreen').style.display = 'flex';
     document.getElementById('app').style.display = 'none';
-    document.getElementById('authMainCard').style.display = 'none';
-    document.getElementById('forgotPasswordCard').style.display = 'none';
+    hideAllAuthCards();
     document.getElementById('resetPasswordCard').style.display = 'flex';
   }
 
+  function showVerifyEmailScreen(email) {
+    document.getElementById('authScreen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    hideAllAuthCards();
+    const emailEl = document.getElementById('verifyEmailAddress');
+    if (emailEl && email) emailEl.textContent = email;
+    document.getElementById('verifyEmailCard').style.display = 'flex';
+  }
+
+  function showUsernameScreen() {
+    document.getElementById('authScreen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+    hideAllAuthCards();
+    document.getElementById('usernameCard').style.display = 'flex';
+    setTimeout(() => document.getElementById('googleUsername')?.focus(), 50);
+  }
+
   let _authBlockMessage = null;
+  // Capture the emailed signup token BEFORE any history.replaceState wipes the URL
+  let _pendingSignupToken = new URLSearchParams(window.location.search).get('signup_token');
 
   async function verifyUser(session) {
     if (!session) return false;
@@ -1624,63 +1676,162 @@
         },
         body: JSON.stringify({ intent })
       });
-      localStorage.removeItem('oauth_intent');
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.verification_required) {
+          // Keep 'oauth_intent' so resends/re-checks stay in signup mode
+          return { status: 'verify_email', email: data.email };
+        }
+        localStorage.removeItem('oauth_intent');
+        return true;
+      }
       if (res.status === 403) {
-        // Unregistered Google account tried to login
+        // Unregistered Google account tried to login (or mid-signup reminder)
+        localStorage.removeItem('oauth_intent');
         const data = await res.json().catch(() => ({}));
         _authBlockMessage = data.detail || 'No account found. Please sign up first.';
         return false;
       }
-      return res.ok;
+      // 404 usually means the backend is running old code without /api/auth/verify
+      if (res.status === 404) {
+        _authBlockMessage = 'Server is out of date (missing /api/auth/verify). Please restart the backend with the latest app.py.';
+      }
+      return false;
     } catch (e) {
       console.error('Profile verification error:', e);
+      _authBlockMessage = 'Could not reach the server. Please try again.';
       return false;
+    }
+  }
+
+  // ── Session handling with dedupe ─────────────────────────────────
+  // Supabase fires several auth events for one login (INITIAL_SESSION,
+  // SIGNED_IN, TOKEN_REFRESHED...). Without this guard, verifyUser runs
+  // once per event and failures pop up multiple times.
+  let _authBusy = false;
+  let _handledToken = null;
+  let _appShown = false;
+
+  async function handleSession(session) {
+    if (!session || _authBusy || session.access_token === _handledToken) return;
+    _authBusy = true;
+    try {
+      // Arrived via the verification email link: show the username form
+      if (_pendingSignupToken) {
+        showUsernameScreen();
+        return;
+      }
+
+      const result = await verifyUser(session);
+      _handledToken = session.access_token;
+
+      if (result === true) {
+        if (!_appShown) { _appShown = true; showApp(); }
+      } else if (result && result.status === 'verify_email') {
+        showVerifyEmailScreen(result.email);
+      } else {
+        _handledToken = null;
+        _appShown = false;
+        await sb.auth.signOut();
+        showNotification(_authBlockMessage || 'Could not verify your account. Please try again.', false);
+        showLogin();
+      }
+    } finally {
+      _authBusy = false;
     }
   }
 
   async function initAuth() {
     const { data } = await sb.auth.getSession();
     currentSession = data.session;
-    
+
     sb.auth.onAuthStateChange(async (event, session) => {
       currentSession = session;
       if (event === 'SIGNED_OUT') {
         isRecoveringPassword = false;
+        _handledToken = null;
+        _appShown = false;
         showLogin();
       } else if (event === 'PASSWORD_RECOVERY') {
         isRecoveringPassword = true;
         showResetPasswordScreen();
       } else if (session && !isRecoveringPassword) {
+        // Clean the OAuth hash/query from the URL (signup token already captured)
         window.history.replaceState({}, document.title, window.location.pathname);
-        
-        const isValid = await verifyUser(session);
-        if (!isValid) {
-          await sb.auth.signOut();
-          showNotification(_authBlockMessage || 'Could not verify your account. Please try again.', false);
-          showLogin();
-          return;
-        }
-        showApp();
+        await handleSession(session);
       } else if (!session && !isRecoveringPassword) {
         showLogin();
       }
     })
-    
+
     if (currentSession) {
       if (isRecoveringPassword) {
         showResetPasswordScreen();
       } else {
-        const isValid = await verifyUser(currentSession);
-        if (isValid) {
-          showApp();
-        } else {
-          await sb.auth.signOut();
-          showNotification(_authBlockMessage || 'Could not verify your account. Please try again.', false);
-          showLogin();
-        }
+        await handleSession(currentSession);
       }
+    } else if (_pendingSignupToken) {
+      // Opened the email link in a browser without the Google session
+      showLogin();
+      showNotification('Please open the verification link in the browser where you signed up, or click "Sign up with Google" again.', false);
     }
     else showLogin();
+  }
+
+  // ── Google signup completion ─────────────────────────────────────
+  async function completeGoogleSignup() {
+    const username = document.getElementById('googleUsername').value.trim();
+    if (!username) { showNotification('Please choose a username'); return; }
+    if (username.includes('@')) { showNotification("Username cannot contain '@'"); return; }
+    if (!currentSession) {
+      showNotification('Session expired. Please click "Sign up with Google" again.');
+      showLogin();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/complete-signup`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ token: _pendingSignupToken, username })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showNotification(data.detail || 'Could not complete signup.');
+        return;
+      }
+      _pendingSignupToken = null;
+      localStorage.removeItem('oauth_intent');
+      showNotification('Account created! An admin will approve your access soon.', true);
+      _appShown = true;
+      showApp();
+    } catch (e) {
+      showNotification('Network error. Check your connection.');
+    }
+  }
+
+  async function resendGoogleVerification() {
+    if (!currentSession) {
+      showNotification('Session expired. Please click "Sign up with Google" again.');
+      showLogin();
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/verify`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ intent: 'signup' })
+      });
+      if (res.ok) showNotification('Verification email sent. Check your inbox.', true);
+      else showNotification('Could not resend the email. Please try again.');
+    } catch (e) {
+      showNotification('Network error. Check your connection.');
+    }
+  }
+
+  async function cancelGoogleSignup() {
+    _pendingSignupToken = null;
+    localStorage.removeItem('oauth_intent');
+    await sb.auth.signOut();
   }
 
 
