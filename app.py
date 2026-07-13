@@ -28,7 +28,7 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 EMAIL_FROM = os.getenv("EMAIL_FROM")
 # Where the verification-email link should send users (your GitHub Pages URL)
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://samrudh123.github.io").rstrip("/")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://samrudh123.github.io/prompt-db").rstrip("/")
 
 app = FastAPI()
 supabase_admin: Client = create_client(
