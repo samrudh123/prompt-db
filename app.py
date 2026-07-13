@@ -111,17 +111,13 @@ def _derive_username(auth_user) -> str:
         candidate = f"{base}_{auth_user.id[:6]}"
     return candidate
 
-def ensure_profile(auth_user) -> dict:
-    """
-    Return the user's profile row, creating one if it doesn't exist.
-    This is the safety net for users who sign in with Google (OAuth)
-    and therefore never went through /api/signup. New profiles start
-    as 'Pending' so an admin must approve them before they see content.
-    """
-    res = supabase_admin.table("profiles").select("*").eq("id", auth_user.id).execute()
-    if res.data:
-        return res.data[0]
+def fetch_profile(user_id: str) -> dict | None:
+    """Return the user's profile row, or None if they never registered."""
+    res = supabase_admin.table("profiles").select("*").eq("id", user_id).execute()
+    return res.data[0] if res.data else None
 
+def create_profile(auth_user) -> dict:
+    """Create a Pending profile for a first-time Google/OAuth signup."""
     profile = {
         "id": auth_user.id,
         "email": auth_user.email,
@@ -134,8 +130,14 @@ def ensure_profile(auth_user) -> dict:
     raise HTTPException(status_code=500, detail="Could not create profile")
 
 async def get_profile_dep(auth_user = Depends(get_auth_user)) -> dict:
-    """Dependency that guarantees a profile row exists and returns it."""
-    return ensure_profile(auth_user)
+    """Dependency that requires a registered profile."""
+    profile = fetch_profile(auth_user.id)
+    if profile is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No Prompt DB account found. Please sign up first."
+        )
+    return profile
 
 async def get_admin_user(profile: dict = Depends(get_profile_dep)):
     """Ensure the requesting user has an admin role."""
@@ -145,6 +147,45 @@ async def get_admin_user(profile: dict = Depends(get_profile_dep)):
 
 # ── Auth endpoints ───────────────────────────────────────────────────
 VALID_ROLES = {"Professor", "Lab-Admin", "MS", "Project-Staff", "Undergrad", "Interns", "Pending", "Server-Admin"}
+
+class VerifyBody(BaseModel):
+    intent: str = "login"  # 'login' or 'signup'
+
+@app.post("/api/auth/verify")
+async def verify_session(body: VerifyBody, auth_user = Depends(get_auth_user)):
+    """
+    Called by the frontend after every session is established.
+    - Registered user  -> return their profile (any intent).
+    - New Google user with intent 'signup' -> create a Pending profile.
+    - New Google user with intent 'login'  -> delete the just-created
+      auth user and reject: they must sign up first.
+    """
+    profile = fetch_profile(auth_user.id)
+    if profile:
+        return JSONResponse({"registered": True, "profile": {
+            "id": profile["id"],
+            "username": profile["username"],
+            "role": profile["role"],
+        }})
+
+    if body.intent == "signup":
+        profile = create_profile(auth_user)
+        return JSONResponse({"registered": True, "created": True, "profile": {
+            "id": profile["id"],
+            "username": profile["username"],
+            "role": profile["role"],
+        }})
+
+    # intent == 'login' but no account exists: undo the OAuth-created auth
+    # user so a later "Sign up with Google" starts clean.
+    try:
+        supabase_admin.auth.admin.delete_user(auth_user.id)
+    except Exception as e:
+        print(f"Failed to delete unregistered OAuth user {auth_user.id}: {e}")
+    raise HTTPException(
+        status_code=403,
+        detail="No Prompt DB account found for this Google account. Please sign up first."
+    )
 
 @app.post("/api/signup")
 async def signup(body: SignupBody, background_tasks: BackgroundTasks):
