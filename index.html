@@ -1276,6 +1276,7 @@
 
              <p class="auth-switch" style="margin:0;">Don't have an account? <a onclick="switchAuthTab('signup')">Sign up</a></p>
              <a onclick="showForgotPassword()" style="font-size:12px; color:var(--accent); cursor:pointer; text-decoration:none; font-weight:500;">Forgot password?</a>
+             <a id="resendVerifyLink" onclick="resendVerification()" style="display:none; font-size:12px; color:var(--accent); cursor:pointer; text-decoration:none; font-weight:500;">Resend verification email</a>
            </div>
         </div>
 
@@ -1637,7 +1638,7 @@
         const isValid = await verifyUser(session);
         if (!isValid) {
           await sb.auth.signOut();
-          showNotification('Username not found', false);
+          showNotification('Could not verify your account. Please try again.', false);
           showLogin();
           return;
         }
@@ -1656,7 +1657,7 @@
           showApp();
         } else {
           await sb.auth.signOut();
-          showNotification('Username not found', false);
+          showNotification('Could not verify your account. Please try again.', false);
           showLogin();
         }
       }
@@ -1704,6 +1705,31 @@
     ]).catch(e => console.error('App init error:', e));
   }
 
+  let _pendingVerifyEmail = null;
+
+  async function resendVerification() {
+    const email = _pendingVerifyEmail
+      || (document.getElementById('loginEmail').value.trim().includes('@')
+            ? document.getElementById('loginEmail').value.trim()
+            : null);
+    if (!email) {
+      showNotification('Enter your email address in the field above first.');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (res.ok) showNotification('Verification email resent. Check your inbox.', true);
+      else showNotification(data.detail || 'Could not resend email.');
+    } catch (e) {
+      showNotification('Network error. Check your connection.');
+    }
+  }
+
   async function signInWithGoogle() {
     try {
       const { data, error } = await sb.auth.signInWithOAuth({
@@ -1733,6 +1759,12 @@
       });
       const data = await res.json();
       if (!res.ok) {
+        if (res.status === 403) {
+          // Email not verified yet — offer to resend the link
+          if (emailOrUser.includes('@')) _pendingVerifyEmail = emailOrUser;
+          const resendLink = document.getElementById('resendVerifyLink');
+          if (resendLink) resendLink.style.display = 'inline';
+        }
         showNotification(data.detail || 'Login failed');
         return;
       }
@@ -1768,6 +1800,15 @@
       const data = await res.json();
       if (!res.ok) {
         showNotification(data.detail || 'Signup failed');
+        return;
+      }
+      if (data.needs_verification) {
+        // Email confirmation is enabled — no session until the link is clicked
+        _pendingVerifyEmail = email;
+        switchAuthTab('login');
+        const resendLink = document.getElementById('resendVerifyLink');
+        if (resendLink) resendLink.style.display = 'inline';
+        showNotification('Account created! Check your email and click the verification link before signing in.', true);
         return;
       }
       showNotification('Account created! Signing in…', true);
@@ -1812,6 +1853,12 @@
       if (res.ok) {
         userProfile = await res.json();
         updateUserAvatar();
+        if (userProfile.role === 'Pending' && !window._pendingNoticeShown) {
+          window._pendingNoticeShown = true;
+          showNotification('Your account is awaiting admin approval. You can browse the default prompts in the meantime.', true);
+        }
+        // Re-render the list so admin edit/delete buttons appear once the role is known
+        if (typeof renderList === 'function') renderList();
       }
     } catch (e) {
       console.error('Failed to load profile:', e);
@@ -1879,7 +1926,7 @@
     const existingAdmin = dropdown.querySelector('.admin-link');
     if (existingAdmin) existingAdmin.remove();
     
-    if (userProfile.role === 'Bot') {
+    if (userProfile.role === 'Bot' || userProfile.role === 'Server-Admin') {
       const adminBtn = document.createElement('button');
       adminBtn.className = 'dropdown-logout-btn admin-link';
       adminBtn.style.cssText = 'color: var(--accent); border-color: var(--accent);';
@@ -2178,14 +2225,16 @@
       return;
     }
     el.innerHTML = list.map((p,i) => {
-      const canManage = (p.user_id === currentSession?.user?.id) || (userProfile?.role === 'Bot');
+      const canManage = (typeof p.can_manage === 'boolean')
+        ? p.can_manage
+        : ((p.user_id === currentSession?.user?.id) || (userProfile?.role === 'Bot') || (userProfile?.role === 'Server-Admin'));
       return `
       <div class="prompt-card ${state.selected?.id===p.id?'selected':''}" onclick="selectPrompt('${p.id}')">
         <div class="card-header">
            <span class="card-title">${p.title}${p.is_system ? ' <small style="opacity:0.6; font-weight:normal; font-size:11px;">(Default)</small>' : (p.is_public && p.username ? ` <span class="role-badge ${getRoleBadgeClass(p.role)}" style="font-size:10px; margin-left:4px; padding:1px 6px;">${escapeHtml(p.username)}</span>` : '')}</span>
            <div class="card-actions">
              ${canManage ? `
-             ${(p.user_id === currentSession?.user?.id && !p.is_system) ? `
+             ${(canManage && !p.is_system) ? `
              <button class="icon-btn ${p.is_public ? 'public-active' : ''}" onclick="event.stopPropagation();togglePublic('${p.id}', ${p.is_public})" title="${p.is_public ? 'Make Private' : 'Make Public'}" aria-label="${p.is_public ? 'Make Private' : 'Make Public'}">
                <i class="ti ${p.is_public ? 'ti-lock' : 'ti-globe'}"></i>
              </button>` : ''}

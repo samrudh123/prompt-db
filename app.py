@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import smtplib
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -51,6 +52,9 @@ app.add_middleware(
 
 SYSTEM_USER_ID = os.environ["SYSTEM_USER_ID"]
 
+# Roles that may manage other users' data (edit/delete any prompt, manage roles)
+ADMIN_ROLES = {"Bot", "Server-Admin"}
+
 class PromptBody(BaseModel):
     title: str
     category: str
@@ -70,30 +74,86 @@ class LoginBody(BaseModel):
     email_or_username: str
     password: str
 
-async def get_user(creds: HTTPAuthorizationCredentials = Depends(security)):
-    """Verify the JWT from the frontend and return the user id."""
+class ResendVerificationBody(BaseModel):
+    email: str
+
+# ── Auth dependencies ────────────────────────────────────────────────
+
+async def get_auth_user(creds: HTTPAuthorizationCredentials = Depends(security)):
+    """Verify the JWT from the frontend and return the full auth user object."""
     try:
         user = supabase_auth.auth.get_user(creds.credentials)
-        return user.user.id
+        return user.user
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-async def get_admin_user(user_id: str = Depends(get_user)):
-    """Ensure the requesting user has the 'Bot' role."""
-    res = supabase_admin.table("profiles").select("role").eq("id", user_id).single().execute()
-    if not res.data or res.data.get("role") != "Bot":
+async def get_user(auth_user = Depends(get_auth_user)):
+    """Return just the user id (kept for backwards compatibility)."""
+    return auth_user.id
+
+def _derive_username(auth_user) -> str:
+    """Build a username for OAuth users who never picked one."""
+    meta = auth_user.user_metadata or {}
+    base = (
+        meta.get("username")
+        or meta.get("user_name")
+        or meta.get("preferred_username")
+        or (auth_user.email or "").split("@")[0]
+        or f"user_{auth_user.id[:8]}"
+    )
+    # keep it simple/safe: letters, digits, dot, dash, underscore
+    base = re.sub(r"[^a-zA-Z0-9._-]", "", base) or f"user_{auth_user.id[:8]}"
+
+    # ensure uniqueness in profiles
+    candidate = base
+    existing = supabase_admin.table("profiles").select("id").eq("username", candidate).execute()
+    if existing.data:
+        candidate = f"{base}_{auth_user.id[:6]}"
+    return candidate
+
+def ensure_profile(auth_user) -> dict:
+    """
+    Return the user's profile row, creating one if it doesn't exist.
+    This is the safety net for users who sign in with Google (OAuth)
+    and therefore never went through /api/signup. New profiles start
+    as 'Pending' so an admin must approve them before they see content.
+    """
+    res = supabase_admin.table("profiles").select("*").eq("id", auth_user.id).execute()
+    if res.data:
+        return res.data[0]
+
+    profile = {
+        "id": auth_user.id,
+        "email": auth_user.email,
+        "username": _derive_username(auth_user),
+        "role": "Pending",
+    }
+    created = supabase_admin.table("profiles").upsert(profile, on_conflict="id").execute()
+    if created.data:
+        return created.data[0]
+    raise HTTPException(status_code=500, detail="Could not create profile")
+
+async def get_profile_dep(auth_user = Depends(get_auth_user)) -> dict:
+    """Dependency that guarantees a profile row exists and returns it."""
+    return ensure_profile(auth_user)
+
+async def get_admin_user(profile: dict = Depends(get_profile_dep)):
+    """Ensure the requesting user has an admin role."""
+    if profile.get("role") not in ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Administrative privileges required")
-    return user_id
+    return profile["id"]
 
 # ── Auth endpoints ───────────────────────────────────────────────────
 VALID_ROLES = {"Professor", "Lab-Admin", "MS", "Project-Staff", "Undergrad", "Interns", "Pending", "Server-Admin"}
 
 @app.post("/api/signup")
 async def signup(body: SignupBody, background_tasks: BackgroundTasks):
-    """Create a new user with username, email, and password."""
+    """Create a new user with username, email, and password.
+    With 'Confirm email' enabled in Supabase, no session is returned until
+    the user clicks the verification link sent to their inbox."""
     if '@' in body.username:
         raise HTTPException(status_code=400, detail="Username cannot contain '@'")
-    
+
     # Check if username is already taken
     existing = supabase_admin.table("profiles").select("id").eq("username", body.username).execute()
     if existing.data:
@@ -111,17 +171,32 @@ async def signup(body: SignupBody, background_tasks: BackgroundTasks):
         })
         if res.user is None:
             raise HTTPException(status_code=400, detail="Signup failed")
-        
+
         # Send notification in background to avoid blocking response
         background_tasks.add_task(send_signup_notification, body.email, body.username)
+
+        # When email confirmation is enabled, session is None until verified
+        needs_verification = res.session is None
 
         return JSONResponse({
             "user_id": res.user.id,
             "email": body.email,
-            "username": body.username
+            "username": body.username,
+            "needs_verification": needs_verification,
+            "message": "Check your email to verify your account before logging in."
+                       if needs_verification else "Signup successful."
         })
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/resend-verification")
+async def resend_verification(body: ResendVerificationBody):
+    """Resend the email verification link."""
+    try:
+        supabase_auth.auth.resend({"type": "signup", "email": body.email})
+        return JSONResponse({"ok": True, "message": "Verification email resent."})
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -151,15 +226,18 @@ async def login(body: LoginBody):
             }
         })
     except Exception as e:
+        # Surface unverified-email as a distinct, actionable error
+        if "email not confirmed" in str(e).lower():
+            raise HTTPException(
+                status_code=403,
+                detail="Email not verified. Please check your inbox for the verification link."
+            )
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
 @app.get("/api/profile")
-async def get_profile(user_id: str = Depends(get_user)):
-    """Return the current user's profile (username, email, role)."""
-    res = supabase_admin.table("profiles").select("*").eq("id", user_id).execute()
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    profile = res.data[0]
+async def get_profile(profile: dict = Depends(get_profile_dep)):
+    """Return the current user's profile (username, email, role).
+    Also auto-creates the profile for first-time Google/OAuth sign-ins."""
     return JSONResponse({
         "id": profile["id"],
         "username": profile["username"],
@@ -238,11 +316,11 @@ async def update_user_role(user_id: str, body: RoleUpdateBody, background_tasks:
     """Update a user's role. Admin only."""
     if body.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail="Invalid role")
-    
+
     res = supabase_admin.table("profiles").update({"role": body.role}).eq("id", user_id).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     user_email = res.data[0].get("email")
     if user_email:
         # Send email in background to avoid blocking the response
@@ -252,13 +330,16 @@ async def update_user_role(user_id: str, body: RoleUpdateBody, background_tasks:
 
 # ── Prompt CRUD endpoints ────────────────────────────────────────────
 @app.get("/api/prompts")
-async def list_prompts(user_id: str = Depends(get_user)):
-    """List prompts that are public, owned by the user, or are system prompts."""
-    # Fetch user role
-    user_profile = supabase_admin.table("profiles").select("role").eq("id", user_id).single().execute()
-    user_role = user_profile.data.get("role") if user_profile.data else 'Pending'
+async def list_prompts(profile: dict = Depends(get_profile_dep)):
+    """List prompts that are public, owned by the user, or are system prompts.
+    Admins (Bot / Server-Admin) see ALL prompts so they can manage them."""
+    user_id = profile["id"]
+    user_role = profile.get("role") or "Pending"
 
-    if user_role == "Pending":
+    if user_role in ADMIN_ROLES:
+        # Admins see everything
+        res = supabase_admin.table("prompts").select("*, profiles(username, role)").execute()
+    elif user_role == "Pending":
         # Only prompts owned by Bot users for Pending/unverified users
         # We use !inner to filter by the joined profile role
         res = supabase_admin.table("prompts").select("*, profiles!inner(username, role)").eq("profiles.role", "Bot").execute()
@@ -269,25 +350,28 @@ async def list_prompts(user_id: str = Depends(get_user)):
             query_filter += f",user_id.eq.{SYSTEM_USER_ID}"
         res = supabase_admin.table("prompts").select("*, profiles(username, role)").or_(query_filter).execute()
     data = res.data
-    
+
     # Mark system prompts and flatten profile data
     for p in data:
         profile_data = p.get("profiles")
-        
+
         # Supabase joins can return a list or a single object
-        profile = None
+        prof = None
         if isinstance(profile_data, list) and len(profile_data) > 0:
-            profile = profile_data[0]
+            prof = profile_data[0]
         elif isinstance(profile_data, dict):
-            profile = profile_data
-        
-        if profile:
-            p["username"] = profile.get("username")
-            p["role"] = profile.get("role")
-        
+            prof = profile_data
+
+        if prof:
+            p["username"] = prof.get("username")
+            p["role"] = prof.get("role")
+
         # A prompt is a system prompt if its owner has the 'Bot' role
-        p["is_system"] = (profile and profile.get("role") == "Bot")
-        
+        p["is_system"] = (prof and prof.get("role") == "Bot")
+
+        # Tell the frontend whether the current user may edit/delete this prompt
+        p["can_manage"] = (p.get("user_id") == user_id) or (user_role in ADMIN_ROLES)
+
     data.sort(key=lambda x: x.get('created_at') or x.get('created', ''), reverse=True)
     return JSONResponse(data)
 
@@ -301,21 +385,34 @@ class PublicToggleBody(BaseModel):
     is_public: bool
 
 @app.patch("/api/prompts/{prompt_id}/public")
-async def toggle_public(prompt_id: str, body: PublicToggleBody, user_id: str = Depends(get_user)):
-    """Toggle the public status of a prompt."""
-    res = supabase_admin.table("prompts").update({"is_public": body.is_public}).eq("id", prompt_id).eq("user_id", user_id).execute()
+async def toggle_public(prompt_id: str, body: PublicToggleBody, profile: dict = Depends(get_profile_dep)):
+    """Toggle the public status of a prompt. Owners or admins only."""
+    query = supabase_admin.table("prompts").update({"is_public": body.is_public}).eq("id", prompt_id)
+    if profile.get("role") not in ADMIN_ROLES:
+        query = query.eq("user_id", profile["id"])
+    res = query.execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Prompt not found or unauthorized")
     return JSONResponse(res.data[0])
 
 @app.put("/api/prompts/{prompt_id}")
-async def update_prompt(prompt_id: str, body: PromptBody, user_id: str = Depends(get_user)):
-    res = supabase_admin.table("prompts").update(body.model_dump()).eq("id", prompt_id).eq("user_id", user_id).execute()
+async def update_prompt(prompt_id: str, body: PromptBody, profile: dict = Depends(get_profile_dep)):
+    """Update a prompt. Owners can edit their own; admins can edit any."""
+    query = supabase_admin.table("prompts").update(body.model_dump()).eq("id", prompt_id)
+    if profile.get("role") not in ADMIN_ROLES:
+        query = query.eq("user_id", profile["id"])
+    res = query.execute()
     if not res.data:
-        raise HTTPException(status_code=404, detail="Prompt not found")
+        raise HTTPException(status_code=404, detail="Prompt not found or unauthorized")
     return JSONResponse(res.data[0])
 
 @app.delete("/api/prompts/{prompt_id}")
-async def delete_prompt(prompt_id: str, user_id: str = Depends(get_user)):
-    supabase_admin.table("prompts").delete().eq("id", prompt_id).eq("user_id", user_id).execute()
+async def delete_prompt(prompt_id: str, profile: dict = Depends(get_profile_dep)):
+    """Delete a prompt. Owners can delete their own; admins can delete any."""
+    query = supabase_admin.table("prompts").delete().eq("id", prompt_id)
+    if profile.get("role") not in ADMIN_ROLES:
+        query = query.eq("user_id", profile["id"])
+    res = query.execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Prompt not found or unauthorized")
     return JSONResponse({"ok": True})
