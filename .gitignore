@@ -1,0 +1,24 @@
+# ── Secrets ───────────────────────────────────────────────────────────
+# backend/.env holds the Supabase service-role key, bot credentials and the
+# SMTP password. Never commit it.
+.env
+*.env
+backend/google_oauth_client_details.json
+
+# Local helper that logs in as the bot and prints its access token.
+backend/bot_token.py
+
+# ── Database scripts ──────────────────────────────────────────────────
+# Kept on disk (run them in the Supabase SQL editor) but deliberately
+# untracked: seed.sql embeds real user UUIDs and emails.
+*.sql
+
+# ── Python ────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+promptdb/
+
+# ── Local scratch ─────────────────────────────────────────────────────
+*.bak

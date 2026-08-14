@@ -60,27 +60,46 @@ The application follows a modern client-server architecture:
 - Supabase Account & Project
 - Ngrok (for local development/exposure)
 
+### Repository Layout
+
+```
+backend/     FastAPI app (app.py), requirements.txt, and .env  (.env is gitignored)
+frontend/    index.html — the entire client, published to GitHub Pages
+*.sql        schema / seed / migration scripts (gitignored: seed.sql embeds real UUIDs)
+```
+
 ### Local Development
 
 1. **Database Setup:**
-   Run the provided SQL scripts in your Supabase SQL Editor in the following order:
+   Run the SQL scripts in your Supabase SQL Editor in the following order:
    - `schema.sql`
    - `seed.sql`
    - `update_prompts.sql`
 
+   These are kept out of version control (`.gitignore`) because `seed.sql`
+   contains real user IDs and emails.
+
 2. **Environment Configuration:**
-   Create a `.env` file:
+   Create `backend/.env` (gitignored — it holds the service-role key):
    ```env
    SUPABASE_URL=your_supabase_url
    SUPABASE_SERVICE_KEY=your_service_role_key
    SUPABASE_ANON_KEY=your_anon_key
    SYSTEM_USER_ID=the_id_of_your_bot_user
-   NON_STREAM_TIMEOUT_SEC=120
+   FRONTEND_URL=https://samrudh123.github.io/prompt-db
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=your_smtp_user
+   SMTP_PASSWORD=your_smtp_app_password
+   EMAIL_FROM=your_from_address
    ```
+   `app.py` always loads `.env` from beside itself, so the server starts the
+   same way from `backend/` or from the repo root.
 
 3. **Run Backend:**
    ```bash
-   pip install -r requirements.txt  # (If applicable)
+   cd backend
+   pip install -r requirements.txt
    uvicorn app:app --reload --host 0.0.0.0 --port 8000
    ```
 
@@ -89,10 +108,21 @@ The application follows a modern client-server architecture:
    ```bash
    ngrok http 8000
    ```
-   Copy the ngrok URL and update the `API_BASE` in `index.html`.
+   Copy the ngrok URL and update `API_BASE` in `frontend/index.html`.
 
 5. **Run Frontend:**
-   Open `index.html` in your browser or serve it via a local web server.
+   Open `frontend/index.html` in your browser or serve it via a local web server.
+
+### Deployment
+
+Pushing to `master` publishes `frontend/` to GitHub Pages via
+`.github/workflows/deploy-pages.yml`, keeping the site at
+https://samrudh123.github.io/prompt-db/ — the URL registered in the Supabase
+and Google OAuth redirect allow-lists. This requires
+**Settings → Pages → Source = "GitHub Actions"**.
+
+The backend is not deployed; it runs locally and is exposed through ngrok,
+so `API_BASE` must be refreshed whenever the tunnel restarts.
 
 ---
 *Built with ❤️ for researchers and prompt engineers.*

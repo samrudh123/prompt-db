@@ -20,7 +20,9 @@ from fastapi import Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 HERE = Path(__file__).resolve().parent
-load_dotenv(override=True)
+# Load .env from next to this file, not from the CWD, so the server behaves
+# the same whether it is started from backend/ or from the repo root.
+load_dotenv(HERE / ".env", override=True)
 
 SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))

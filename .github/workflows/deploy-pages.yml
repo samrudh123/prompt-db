@@ -1,0 +1,42 @@
+# Publishes the contents of frontend/ to GitHub Pages.
+#
+# Before the first run, set Settings → Pages → Source to "GitHub Actions".
+# Classic branch-based Pages can only serve the repo root or /docs, and
+# index.html now lives in frontend/ — this workflow is what keeps the site
+# at https://samrudh123.github.io/prompt-db/ (unchanged), which the Supabase
+# and Google OAuth redirect allow-lists depend on.
+name: Deploy frontend to Pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          # Uploads the folder's *contents*, so frontend/index.html is served
+          # at the site root rather than at /frontend/.
+          path: frontend
+      - id: deployment
+        uses: actions/deploy-pages@v4
